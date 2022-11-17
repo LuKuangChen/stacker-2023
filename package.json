@@ -1,5 +1,5 @@
 {
-  "name": "rescript-project-template",
+  "name": "stacker-on-web",
   "version": "0.0.1",
   "scripts": {
     "res:build": "rescript",
@@ -12,6 +12,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "rescript": "*"
+    "@rescript/react": "^0.10.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rescript": "^10.0.1"
   }
 }

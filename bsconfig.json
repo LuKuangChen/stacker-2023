@@ -1,13 +1,15 @@
 {
-  "name": "rescript-project-template",
+  "name": "stacker-on-web",
   "sources": {
     "dir": "src",
     "subdirs": true
   },
   "package-specs": {
-    "module": "commonjs",
+    "module": "es6",
     "in-source": true
   },
   "suffix": ".bs.js",
-  "bs-dependencies": []
+  "reason": { "react-jsx": 3 },
+  "bs-dependencies": ["@rescript/react"]
+
 }
