@@ -1,15 +1,18 @@
 {
-  "name": "stacker-on-web",
-  "sources": {
-    "dir": "src",
-    "subdirs": true
-  },
-  "package-specs": {
-    "module": "es6",
-    "in-source": true
-  },
+  "name": "smol-nm",
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    }
+  ],
+  "package-specs": [
+    {
+      "module": "es6",
+      "in-source": true
+    }
+  ],
   "suffix": ".bs.js",
-  "reason": { "react-jsx": 3 },
+  "jsx": { "version": 4, "mode": "classic" },
   "bs-dependencies": ["@rescript/react"]
-
 }

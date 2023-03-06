@@ -1,21 +1,27 @@
-# ReScript Project Template
+# Stacker
 
-The only official ReScript starter template.
+## Development
 
-## Installation
-
-```sh
-npm install
-```
-
-## Build
-
-- Build: `npm run res:build`
-- Clean: `npm run res:clean`
-- Build & watch: `npm run res:start`
-
-## Run
+Start the watch-compile
 
 ```sh
-node src/Demo.bs.js
+npm run res:start
 ```
+
+Build webpack everytime
+
+```sh
+npm run build
+```
+
+## Build from the source code
+
+```sh
+npx build
+```
+
+## Naming conventions
+
+- `Xyz.res`: a React component
+- `xyz.res`: a module
+- `webpack.config.js`: the webpack configuration

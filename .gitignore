@@ -3,3 +3,6 @@
 /lib/
 .bsb.lock
 .merlin
+**/*.bs.js
+/dist
+!/dist/index.html
