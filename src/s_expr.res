@@ -104,6 +104,16 @@ and start_parse_list = (start, src) => {
   parse_list(list{}, src)
 }
 
+let parse_many = (src: source) => {
+  let rec loop = (elms, src) => {
+    switch parse_one(src) {
+    | (elm, src) => loop(list{elm, ...elms}, src)
+    | exception WantSExprFoundEOF => Belt.List.reverse(elms)
+    }
+  }
+  loop(list{}, src)
+}
+
 let rec stringOfSexpr = e =>
   switch e {
   | Atom(Sym(s)) => s
@@ -114,3 +124,7 @@ let rec stringOfSexpr = e =>
       "(" ++ stringOfSexpr(x) ++ stringOfXs ++ ")"
     }
   }
+
+let rec stringOfManySexprs = es => {
+  List.map(e => { stringOfSexpr(e) ++ "\n" }, es) |> stringOfList
+}
