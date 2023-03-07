@@ -12,7 +12,9 @@ type rec expression =
   | App(expression, list<expression>)
   | Cnd(list<(expression, block)>, option<block>)
 and block = (list<term>, expression)
-and definition = Var(symbol, expression)
+and definition =
+  | Var(symbol, expression)
+  | Fun(symbol, list<symbol>, block)
 and term =
   | Def(definition)
   | Exp(expression)
@@ -25,6 +27,7 @@ let xsOfBlock = (b: block) => {
   |> map((. trm) =>
     switch trm {
     | Def(Var(x, _e)) => list{x}
+    | Def(Fun(x, _ys, _b)) => list{x}
     | Exp(_e) => list{}
     }
   )
