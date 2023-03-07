@@ -9,11 +9,15 @@ function Main(props) {
         return "";
       });
   var program = match[0];
+  var match$1 = React.useState(function () {
+        return /* Editing */0;
+      });
   return React.createElement("div", undefined, React.createElement("div", {
                   id: "program-source"
                 }, React.createElement(CodeEditor.make, {
                       program: program,
-                      setProgram: match[1]
+                      setProgram: match[1],
+                      editable: match$1[0] === /* Editing */0
                     })), React.createElement("div", {
                   id: "stacker"
                 }, React.createElement(Stacker.make, {

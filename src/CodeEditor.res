@@ -1,5 +1,5 @@
 @react.component
-let make = (~program, ~setProgram) => {
+let make = (~program, ~setProgram, ~editable) => {
   let output = switch S_expr.parse_many(program |> S_expr.stringToSource) {
   | parsed => S_expr.stringOfManySexprs(parsed)
   | exception S_expr.WantSExprFoundEOF => "Unexpected EOF while looking for an S-expression."
@@ -13,7 +13,7 @@ let make = (~program, ~setProgram) => {
     setProgram(_ => ReactEvent.Form.target(evt)["value"])
   }
   <div>
-    <textarea value=program onChange />
+    <textarea value=program onChange disabled={!editable} />
     <p> {React.string(output)} </p>
   </div>
 }
