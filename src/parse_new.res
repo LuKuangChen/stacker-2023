@@ -25,7 +25,7 @@ let rec takeWhile = (pred, ls) => {
 let rec stringOfList = ls => {
   switch ls {
   | list{} => ""
-  | list{x, ...xs} => x ++ stringOfList(ls)
+  | list{x, ...xs} => x ++ stringOfList(xs)
   }
 }
 
