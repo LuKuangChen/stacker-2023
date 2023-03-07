@@ -1,6 +1,7 @@
-open Index
+open Smol
 open S_expr
 open Belt.List
+open Belt
 
 exception ExpectingSymbol
 let as_id = e => {
@@ -51,6 +52,20 @@ let as_expr = e => {
   | Exp(e) => e
   | _ => raise(ExpectingExpression)
   }
+}
+
+let term_of_atom = a => {
+    switch a {
+    | Str(s) => Exp(Con(Str(s)))
+    | Sym("#t") => Exp(Con(Lgc(true)))
+    | Sym("#f") => Exp(Con(Lgc(false)))
+    | Sym(x) =>
+        let e = {
+            let tryNum = x -> Float.fromString -> Option.map((n) => (Con(Num(n)) : expression))
+            tryNum -> Option.getWithDefault(Ref(x))
+        }
+        Exp(e)
+    }
 }
 
 let rec term_of_sexpr = e => {
@@ -109,9 +124,15 @@ let rec term_of_sexpr = e => {
       loop(list{}, branches)
     }
 
-  | pattern2 => expression
+  | Atom(atom) => term_of_atom(atom)
+  | List(es) => {
+      let (e, es) = as_one_or_more(es)
+      let e = e -> term_of_sexpr -> as_expr
+      let es = es -> map(term_of_sexpr) -> map(as_expr)
+      Exp(App(e, es))
+  }
   }
 }
 and terms_of_sexprs = es => {
-  es |> map(term_of_sexpr)
+  es -> map(term_of_sexpr)
 }
