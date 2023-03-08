@@ -1,0 +1,19 @@
+#smol-state {
+    display: flex;
+    flex-direction: row;
+}
+
+#main {
+    display: flex;
+    flex-direction: column;
+}
+
+#row {
+    display: flex;
+    flex-direction: row;
+}
+
+pre.blank {
+    display: inline-block;
+    padding: 0 1ex;
+}

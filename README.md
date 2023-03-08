@@ -1,5 +1,15 @@
 # Stacker
 
+## To-do items
+
+- render basic information like the Racket-based Stacker
+- hover to highlight addresses
+- track history
+- improve messages of runtime errors
+- improve parsing feedback
+- improve button look
+- track line numbers
+
 ## Development
 
 Start the watch-compile
@@ -8,7 +18,7 @@ Start the watch-compile
 npm run res:start
 ```
 
-Build webpack everytime
+Build webpack every time you run
 
 ```sh
 npm run build

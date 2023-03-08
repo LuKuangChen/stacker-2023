@@ -20,7 +20,9 @@
     "rescript": "^10.1.2"
   },
   "devDependencies": {
+    "css-loader": "^6.7.3",
     "html-webpack-plugin": "^5.5.0",
+    "style-loader": "^3.3.1",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.1"
   }
