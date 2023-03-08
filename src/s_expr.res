@@ -54,11 +54,16 @@ let parse_sym = (chr, src: source): (sexpr, source) => {
     let end = () => (Atom(Sym(stringOfList(Belt.List.reverse(cs)))), src)
     switch case_source(src) {
     | None => end()
-    | Some((" ", _src)) => end()
     | Some(("(", _src)) => end()
     | Some((")", _src)) => end()
     | Some(("\"", _src)) => end()
-    | Some((chr, src)) => loop(list{chr, ...cs}, src)
+    | Some((chr, src1)) =>
+      if Js.Re.test_(%re("/\s+/ig"), chr) {
+        end()
+      } else {
+        let src = src1
+        loop(list{chr, ...cs}, src)
+      }
     }
   }
   loop(list{chr}, src)
@@ -89,11 +94,15 @@ let parse_str = (src: source): (sexpr, source) => {
 let rec parse_one = (src: source): (sexpr, source) => {
   switch case_source(src) {
   | None => raise(WantSExprFoundEOF)
-  | Some((" ", src)) => parse_one(src)
   | Some(("(", src)) => start_parse_list(src.srcloc, src)
   | Some((")", src)) => raise(WantSExprFoundRP(src))
   | Some(("\"", src)) => parse_str(src)
-  | Some((chr, src)) => parse_sym(chr, src)
+  | Some((chr, src)) =>
+    if Js.Re.test_(%re("/\s+/ig"), chr) {
+      parse_one(src)
+    } else {
+      parse_sym(chr, src)
+    }
   }
 }
 and start_parse_list = (start, src) => {
@@ -128,5 +137,5 @@ let rec stringOfSexpr = e =>
   }
 
 let rec stringOfManySexprs = es => {
-  List.map(e => { stringOfSexpr(e) ++ "\n" }, es) |> stringOfList
+  List.map(e => {stringOfSexpr(e) ++ "\n"}, es) |> stringOfList
 }

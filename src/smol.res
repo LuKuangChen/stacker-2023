@@ -100,11 +100,11 @@ exception RuntimeError(runtime_error)
 
 let extend = (env, xs): environment => list{xs |> Js.Array.map(x => (x, ref(None))), ...env}
 
-let ifNone = (thunk : () => 'X, o : option<'X>): 'X => {
-    switch o {
-    | None => thunk()
-    | Some(x) => x
-    }
+let ifNone = (thunk: unit => 'X, o: option<'X>): 'X => {
+  switch o {
+  | Some(x) => x
+  | None => thunk()
+  }
 }
 
 let rec lookup = (env, x) => {

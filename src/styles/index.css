@@ -13,7 +13,8 @@
     flex-direction: row;
 }
 
-pre.blank {
+code.blank {
     display: inline-block;
+    white-space: pre-wrap;
     padding: 0 1ex;
 }

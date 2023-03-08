@@ -36,7 +36,7 @@ let string_of_value = v => {
 }
 
 let blank = s => {
-  <pre className="blank"> {React.string(s)} </pre>
+  <code className="blank"> {React.string(s)} </code>
 }
 
 let string_of_list = ss => {
@@ -76,7 +76,7 @@ let string_of_expr_cnd = (ebs, ob) => {
 let rec string_of_expr = (e: expression): string => {
   switch e {
   | Con(c) => string_of_constant(c)
-  | Ref(x) => x
+  | Ref(x) => "#%ref." ++ String.escaped(x)
   | Set(x, e) => string_of_expr_set(x, string_of_expr(e))
   | Lam(xs, b) => string_of_expr_lam(xs, string_of_block(b))
   | App(e, es) => string_of_expr_app(string_of_expr(e), es->map(string_of_expr))

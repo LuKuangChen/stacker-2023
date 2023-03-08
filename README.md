@@ -2,13 +2,15 @@
 
 ## To-do items
 
+- colorring
 - render basic information like the Racket-based Stacker
 - hover to highlight addresses
 - track history
+- track line numbers
 - improve messages of runtime errors
+- improve printing
 - improve parsing feedback
 - improve button look
-- track line numbers
 
 ## Development
 
