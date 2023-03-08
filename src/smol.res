@@ -1,5 +1,7 @@
 // type definition = Defvar(string, expression)
 
+open Belt
+
 type symbol = string
 type constant =
   | Num(float)
@@ -48,7 +50,10 @@ type primitive =
   | Ge
   | Ne
 
-type rec environmentFrame = array<(symbol, ref<option<value>>)>
+type rec environmentFrame = {
+  id: string,
+  content: array<(symbol, ref<option<value>>)>,
+}
 and environment = list<environmentFrame>
 and function =
   // primitives
@@ -64,18 +69,21 @@ and value =
   | Fun(function)
 
 let initialEnv: environment = list{
-  [
-    ("+", ref(Some(Fun(Prm(Add))))),
-    ("-", ref(Some(Fun(Prm(Sub))))),
-    ("*", ref(Some(Fun(Prm(Mul))))),
-    ("/", ref(Some(Fun(Prm(Div))))),
-    ("<", ref(Some(Fun(Prm(Lt))))),
-    ("=", ref(Some(Fun(Prm(Eq))))),
-    (">", ref(Some(Fun(Prm(Gt))))),
-    ("<=", ref(Some(Fun(Prm(Le))))),
-    (">=", ref(Some(Fun(Prm(Ge))))),
-    ("!=", ref(Some(Fun(Prm(Ne))))),
-  ],
+  {
+    id: "primordial-env",
+    content: [
+      ("+", ref(Some(Fun(Prm(Add))))),
+      ("-", ref(Some(Fun(Prm(Sub))))),
+      ("*", ref(Some(Fun(Prm(Mul))))),
+      ("/", ref(Some(Fun(Prm(Div))))),
+      ("<", ref(Some(Fun(Prm(Lt))))),
+      ("=", ref(Some(Fun(Prm(Eq))))),
+      (">", ref(Some(Fun(Prm(Gt))))),
+      ("<=", ref(Some(Fun(Prm(Le))))),
+      (">=", ref(Some(Fun(Prm(Ge))))),
+      ("!=", ref(Some(Fun(Prm(Ne))))),
+    ],
+  },
 }
 
 type result =
@@ -98,7 +106,26 @@ type runtime_error =
   | ArityMismatch(arity, int)
 exception RuntimeError(runtime_error)
 
-let extend = (env, xs): environment => list{xs |> Js.Array.map(x => (x, ref(None))), ...env}
+let new_env_id = () => Js.Math.random_int(0, 1000)
+
+module IntHash = Belt.Id.MakeHashable({
+  type t = int
+  let hash = a => a
+  let eq = (a, b) => a == b
+})
+
+let all_envs = ref(list{})
+
+let extend = (env, xs): environment => {
+  let id = new_env_id()
+  let frm = {
+    id: Int.toString(id),
+    content: xs |> Js.Array.map(x => (x, ref(None))),
+  }
+  let env = list{frm, ...env}
+  all_envs := list{env, ...all_envs.contents}
+  env
+}
 
 let ifNone = (thunk: unit => 'X, o: option<'X>): 'X => {
   switch o {
@@ -107,11 +134,12 @@ let ifNone = (thunk: unit => 'X, o: option<'X>): 'X => {
   }
 }
 
-let rec lookup = (env, x) => {
+let rec lookup = (env: environment, x) => {
   switch env {
   | list{} => raise(RuntimeError(UnboundIdentifier(x)))
-  | list{bs, ...env} =>
-    bs
+  | list{frm, ...env} =>
+    let {id: _, content} = frm
+    content
     |> Js.Array.find(((y, _v)) => x == y)
     |> Js.Option.map((. (_x, v)) => v)
     |> ifNone(() => lookup(env, x))
@@ -124,7 +152,7 @@ let doRef = (env, x) => {
   | Some(v) => v
   }
 }
-let doSet = (env, x, v) => {
+let doSet = (env: environment, x, v) => {
   lookup(env, x).contents = Some(v)
 }
 
@@ -163,19 +191,12 @@ type terminated_state =
   | Err(runtime_error)
   | Tm(list<value>)
 type continuing_state =
-  | Ev(expression, commomState)
+  | App(value, list<value>, commomState)
   | Setting(symbol, value, commomState)
   | Returning(value, stack)
 type state =
   | Terminated(terminated_state)
   | Continuing(continuing_state)
-
-let evaluate = (exp: expression) => {
-  let ctx = list{}
-  and env = list{}
-  and stk = list{}
-  Ev(exp, {ctx, env, stk})
-}
 
 let asNum = v =>
   switch v {
@@ -195,50 +216,8 @@ and asFun = v =>
 
 let doAdd = (u, v) => Con(Num(asNum(u) +. asNum(v)))
 
-let transitionBgn = ((ts, e), stt) => {
-  switch ts {
-  | list{} =>
-    let exp = e
-    Continuing(Ev(exp, stt))
-  | list{Def(Var(x, e0)), ...ts} =>
-    let exp = e0
-    Continuing(Ev(exp, consCtx(BgnDef(x, (), (ts, e)), stt)))
-  | list{Def(Fun(f, xs, b)), ...ts} =>
-    let exp = Lam(xs, b)
-    Continuing(Ev(exp, consCtx(BgnDef(f, (), (ts, e)), stt)))
-  | list{Exp(e0), ...ts} =>
-    let exp = e0
-    Continuing(Ev(exp, consCtx(BgnExp((), (ts, e)), stt)))
-  }
-}
-
-let transitionPrg = (vs, ts, stt) => {
-  switch ts {
-  | list{} => Terminated(Tm(vs))
-  | list{Def(Var(x, e0)), ...ts} =>
-    let exp = e0
-    Continuing(Ev(exp, consCtx(PrgDef(vs, x, (), ts), stt)))
-  | list{Def(Fun(f, xs, b)), ...ts} =>
-    let exp = Lam(xs, b)
-    Continuing(Ev(exp, consCtx(PrgDef(vs, f, (), ts), stt)))
-  | list{Exp(e0), ...ts} =>
-    let exp = e0
-    Continuing(Ev(exp, consCtx(PrgExp(vs, (), ts), stt)))
-  }
-}
-
 let pushStk = (env, stt) => {
   {ctx: list{}, env, stk: list{(stt.ctx, stt.env), ...stt.stk}}
-}
-
-let doBlk = (b, stt): state => {
-  transitionBgn(b, pushStk(extend(stt.env, xsOfBlock(b)), stt))
-}
-
-// todo
-let load = (program: program) => {
-  let xs = xsOfBlock((program, Con(Num(42.0))))
-  transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
 }
 
 let deltaNum1 = (f, v, vs) => {
@@ -343,6 +322,55 @@ and continue = (v: value, stt): state => {
     }
   }
 }
+and doEv = (exp : expression, stt) =>
+  switch exp {
+  | Con(c) =>
+    let val = Con(c)
+    continue(val, stt)
+  | Ref(x) =>
+    let val = doRef(stt.env, x)
+    continue(val, stt)
+  | Set(x, e) =>
+    let exp = e
+    doEv(exp, consCtx(Set1(x, ()), stt))
+  | Lam(xs, b) =>
+    let v = Fun(Udf(xs |> Js.List.toVector, b, stt.env))
+    continue(v, stt)
+  | App(e, es) =>
+    let exp = e
+    doEv(exp, consCtx(App1((), es), stt))
+  | Cnd(ebs, ob) => transitionCnd(ebs, ob, stt)
+  }
+and transitionBgn = ((ts, e), stt) => {
+  switch ts {
+  | list{} =>
+    let exp = e
+    doEv(exp, stt)
+  | list{Def(Var(x, e0)), ...ts} =>
+    let exp = e0
+    doEv(exp, consCtx(BgnDef(x, (), (ts, e)), stt))
+  | list{Def(Fun(f, xs, b)), ...ts} =>
+    let exp = Lam(xs, b)
+    doEv(exp, consCtx(BgnDef(f, (), (ts, e)), stt))
+  | list{Exp(e0), ...ts} =>
+    let exp = e0
+    doEv(exp, consCtx(BgnExp((), (ts, e)), stt))
+  }
+}
+and transitionPrg = (vs, ts, stt) => {
+  switch ts {
+  | list{} => Terminated(Tm(vs))
+  | list{Def(Var(x, e0)), ...ts} =>
+    let exp = e0
+    doEv(exp, consCtx(PrgDef(vs, x, (), ts), stt))
+  | list{Def(Fun(f, xs, b)), ...ts} =>
+    let exp = Lam(xs, b)
+    doEv(exp, consCtx(PrgDef(vs, f, (), ts), stt))
+  | list{Exp(e0), ...ts} =>
+    let exp = e0
+    doEv(exp, consCtx(PrgExp(vs, (), ts), stt))
+  }
+}
 and transitionCnd = (ebs, ob, stt) => {
   switch ebs {
   | list{} =>
@@ -354,7 +382,7 @@ and transitionCnd = (ebs, ob, stt) => {
     }
   | list{(e, b), ...ebs} => {
       let exp = e
-      Continuing(Ev(exp, consCtx(Cnd1((), b, ebs, ob), stt)))
+      doEv(exp, consCtx(Cnd1((), b, ebs, ob), stt))
     }
   }
 }
@@ -379,37 +407,30 @@ and doApp = (v, vs, stt): state => {
 }
 and transitionApp = (f: value, vs: list<value>, es: list<expression>, stt) => {
   switch es {
-  | list{} => doApp(f, vs, stt)
+  | list{} => Continuing(App(f, List.reverse(vs), stt))
   | list{e, ...es} =>
     let exp = e
-    Continuing(Ev(exp, consCtx(App2(f, vs, (), es), stt)))
+    doEv(exp, consCtx(App2(f, vs, (), es), stt))
   }
 }
+and doBlk = (b, stt): state => {
+  transitionBgn(b, pushStk(extend(stt.env, xsOfBlock(b)), stt))
+}
+
+// todo
+let load = (program: program) => {
+  let xs = xsOfBlock((program, Con(Num(42.0))))
+  transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
+}
+
 
 let transition = (state: continuing_state): state => {
   try {
     switch state {
     | Returning(v, stk) => return(v, stk)
     | Setting(x, v, stt) => setting(x, v, stt)
-    | Ev(exp, stt) =>
-      switch exp {
-      | Con(c) =>
-        let val = Con(c)
-        continue(val, stt)
-      | Ref(x) =>
-        let val = doRef(stt.env, x)
-        continue(val, stt)
-      | Set(x, e) =>
-        let exp = e
-        Continuing(Ev(exp, consCtx(Set1(x, ()), stt)))
-      | Lam(xs, b) =>
-        let v = Fun(Udf(xs |> Js.List.toVector, b, stt.env))
-        continue(v, stt)
-      | App(e, es) =>
-        let exp = e
-        Continuing(Ev(exp, consCtx(App1((), es), stt)))
-      | Cnd(ebs, ob) => transitionCnd(ebs, ob, stt)
-      }
+    // | Ev(exp, stt) => doEv(exp, stt)
+    | App(f, vs, stt) => doApp(f, vs, stt)
     }
   } catch {
   | RuntimeError(err) => Terminated(Err(err))

@@ -12,8 +12,8 @@ let make = (~program, ~setProgram, ~editable) => {
     ReactEvent.Form.preventDefault(evt)
     setProgram(_ => ReactEvent.Form.target(evt)["value"])
   }
-  <div>
-    <textarea value=program onChange disabled={!editable} />
-    <p> {React.string(output)} </p>
-  </div>
+  // <div>
+    <textarea value=program onChange disabled={!editable} rows=17 cols=40 />
+    // <p> {React.string(output)} </p>
+  // </div>
 }

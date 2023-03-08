@@ -28,12 +28,17 @@ let make = () => {
       }
     })
   }
+  let runningButNotTerminated =
+    switch state {
+    | Running(Continuing(_)) => false
+    | _ => true
+    }
   <div id="main">
     <div id="control-panel">
       <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
       <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
       <button onClick=onPrevClick disabled={state == Editing}> {React.string("Prev")} </button>
-      <button onClick=onNextClick disabled={state == Editing}> {React.string("Next")} </button>
+      <button onClick=onNextClick disabled={runningButNotTerminated}> {React.string("Next")} </button>
     </div>
     <div id="row">
       <div id="program-source">

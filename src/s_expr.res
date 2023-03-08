@@ -83,6 +83,7 @@ let parse_str = (src: source): (sexpr, source) => {
     | None => raise(WantStringFoundEOF)
     | Some(("\"", src)) => loop(list{"\"", ...cs}, src)
     | Some(("\\", src)) => loop(list{"\\", ...cs}, src)
+    | Some(("r", src)) => loop(list{"\r", ...cs}, src)
     | Some(("t", src)) => loop(list{"\t", ...cs}, src)
     | Some(("n", src)) => loop(list{"\n", ...cs}, src)
     | Some((chr, src)) => raise(WantEscapableCharFound(chr))

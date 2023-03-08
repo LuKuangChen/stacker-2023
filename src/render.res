@@ -107,6 +107,10 @@ and string_of_term = t => {
   }
 }
 
+let label: string => React.element = s => {
+  <span className="label"> {React.string(s)} </span>
+}
+
 let show_expr = e => {
   blank(string_of_expr(e))
 }
@@ -164,7 +168,7 @@ let show_ctx = ctx => {
 
 let show_envFrm = (frm: environmentFrame) => {
   React.array(
-    Array.map(frm, xv => {
+    Array.map(frm.content, xv => {
       let (x, v) = xv
       let ov = v.contents
       let v = switch ov {
@@ -180,12 +184,38 @@ let show_envFrm = (frm: environmentFrame) => {
   )
 }
 
-let show_env = env => {
-//   if length(env) <= 1 {
-//     React.string("the primordial environment")
-//   } else {
-    <div> {React.array(env->map(show_envFrm)->toArray)} </div>
-//   }
+let show_env = (env: environment) => {
+  switch env {
+  | list{} => raise(Impossible("An environment must have at least one frame."))
+  | list{frm, ..._rest} => blank("@" ++ frm.id)
+  }
+}
+
+let show_one_env = (env: environment): React.element => {
+  switch env {
+  | list{} => raise(Impossible("An environment must have at least one frame."))
+  | list{frm, ...rest} => {
+      let {id, content} = frm
+      <div className="env-frame">
+        <p>
+          {label("@")}
+          {blank(id)}
+        </p>
+        <p>
+          {label("binds")}
+          {show_envFrm(frm)}
+        </p>
+        <p>
+          {label("rest @")}
+          {show_env(rest)}
+        </p>
+      </div>
+    }
+  }
+}
+
+let show_all_envs = () => {
+  React.array(all_envs.contents->map(show_one_env)->List.toArray)
 }
 
 let render_error = err => {
@@ -220,16 +250,16 @@ let show_stack = (frms: list<React.element>) => {
 
 let show_state = (stack, now, envs, heap) => {
   <div id="smol-state">
-    <div id="stack-and-now">
+    <div id="stack-and-now" className="column">
       <div> {stack} </div>
-      <div> {now} </div>
+      <div className="now"> {now} </div>
     </div>
-    <div>
-      <div> {React.string("Environments")} </div>
+    <div className="column">
+      <p> {label("Environments")} </p>
       {envs}
     </div>
-    <div>
-      <div> {React.string("The Heap")} </div>
+    <div className="column">
+      <p> {label("The Heap")} </p>
       {heap}
     </div>
   </div>
@@ -238,66 +268,66 @@ let show_state = (stack, now, envs, heap) => {
 let render: state => React.element = s => {
   switch s {
   | Terminated(Err(err)) =>
-    show_state(show_stack(list{}), React.string(render_error(err)), todo, todo)
+    show_state(show_stack(list{}), React.string(render_error(err)), show_all_envs(), todo)
   | Terminated(Tm(vs)) => {
       let now = React.string("terminated\n" ++ String.concat("\n", vs->map(string_of_value)))
-      show_state(show_stack(list{}), now, todo, todo)
+      show_state(show_stack(list{}), now, show_all_envs(), todo)
     }
 
-  | Continuing(Ev(e, stt)) => {
+  | Continuing(App(f, vs, stt)) => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->map(show_stkFrm))
       let now =
-        <div>
+        <div className="calling">
           <p>
-            {React.string("Evaluating")}
-            {show_expr(e)}
+            {label("Calling")}
+            {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)}))}
           </p>
           <p>
-            {React.string("in")}
+            {label("in context")}
             {show_ctx(ctx)}
           </p>
           <p>
-            {React.string("where")}
+            {label("in environment")}
             {show_env(env)}
           </p>
         </div>
-      show_state(stk, now, todo, todo)
+      show_state(stk, now, show_all_envs(), todo)
     }
 
   | Continuing(Setting(x, v, stt)) => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->map(show_stkFrm))
       let now =
-        <div>
+        <div className="replacing">
           <p>
-            {React.string("Replacing the value of")}
+            {label("Replacing the value of")}
             {blank(x)}
-            {React.string("with")}
+            {label("with")}
             {show_value(v)}
           </p>
           <p>
-            {React.string("in")}
+            {label("in context")}
             {show_ctx(ctx)}
           </p>
           <p>
-            {React.string("where")}
+            {label("in environment")}
             {show_env(env)}
           </p>
         </div>
-      show_state(stk, now, todo, todo)
+      show_state(stk, now, show_all_envs(), todo)
     }
 
   | Continuing(Returning(v, stk)) => {
       let stk = show_stack(stk->map(show_stkFrm))
       let now =
-        <div>
+        <div className="returning">
           <p>
-            {React.string("Returning")}
+            {label("Returning")}
             {show_value(v)}
           </p>
         </div>
-      show_state(stk, now, todo, todo)
+      show_state(stk, now, show_all_envs(), todo)
     }
   }
 }
