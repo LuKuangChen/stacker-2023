@@ -227,16 +227,18 @@ let transitionPrg = (vs, ts, stt) => {
   }
 }
 
-let load = (program: program) => {
-  transitionPrg(list{}, program, {ctx: list{}, env: initialEnv, stk: list{}})
-}
-
 let pushStk = (env, stt) => {
   {ctx: list{}, env, stk: list{(stt.ctx, stt.env), ...stt.stk}}
 }
 
 let doBlk = (b, stt): state => {
   transitionBgn(b, pushStk(extend(stt.env, xsOfBlock(b)), stt))
+}
+
+// todo
+let load = (program: program) => {
+  let xs = xsOfBlock((program, Con(Num(42.0))))
+  transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
 }
 
 let deltaNum1 = (f, v, vs) => {
@@ -384,7 +386,6 @@ and transitionApp = (f: value, vs: list<value>, es: list<expression>, stt) => {
   }
 }
 
-exception HasTerminated
 let transition = (state: continuing_state): state => {
   try {
     switch state {

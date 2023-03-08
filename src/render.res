@@ -60,7 +60,7 @@ let string_of_expr_lam = (xs, b) => {
 }
 
 let string_of_expr_app = (e, es) => {
-  string_of_list(list{e, ...es})
+  string_of_list(list{"#%app", e, ...es})
 }
 
 let string_of_expr_cnd = (ebs, ob) => {
