@@ -23,8 +23,31 @@ let string_of_constant = c => {
   }
 }
 
-let string_of_function = f => {
-  "#<procedure>"
+let string_of_prm = (o: primitive) => {
+  switch o {
+  | Add => "+"
+  | Sub => "-"
+  | Mul => "*"
+  | Div => "/"
+  | Lt => "<"
+  | Eq => "="
+  | Gt => ">"
+  | Le => "<="
+  | Ge => ">="
+  | Ne => "!="
+  }
+}
+
+let string_of_function = (f: Smol.function) => {
+  switch f {
+  | Udf(id, name, _xs, _body, _env) => {
+      let id = id->Int.toString
+      let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
+      "@" ++ id ++ name
+    }
+
+  | Prm(prm) => string_of_prm(prm)
+  }
 }
 
 let string_of_value = v => {
@@ -48,7 +71,9 @@ let string_of_def_var = (x, e) => {
 }
 
 let string_of_def_fun = (f, xs, b) => {
-  string_of_list(list{"deffun", string_of_list(list{f, ...xs}), b})
+  // string_of_list(list{"deffun", string_of_list(list{f, ...xs}), b})
+  let b = Js.String.replace("\n", "\n  ", b)
+  "(" ++ "deffun" ++ " " ++ string_of_list(list{f, ...xs}) ++ "\n  " ++ b ++ ")"
 }
 
 let string_of_expr_set = (x, e) => {
@@ -56,7 +81,8 @@ let string_of_expr_set = (x, e) => {
 }
 
 let string_of_expr_lam = (xs, b) => {
-  string_of_list(list{"lambda", string_of_list(xs), b})
+  let b = Js.String.replace("\n", "\n  ", b)
+  "(" ++ "lambda" ++ " " ++ string_of_list(xs) ++ "\n  " ++ b ++ ")"
 }
 
 let string_of_expr_app = (e, es) => {
@@ -146,14 +172,14 @@ let shower_of_contextFrame = frm => {
     }
   | PrgDef(vs, x, (), ts) =>
     xyz => {
-      let vs = vs->map(string_of_value)
+      let vs = vs->map(string_of_value)->reverse
       let d = string_of_def_var(x, xyz)
       let ts = ts->map(string_of_term)
       String.concat("\n", list{...vs, d, ...ts})
     }
   | PrgExp(vs, (), ts) =>
     xyz => {
-      let vs = vs->map(string_of_value)
+      let vs = vs->map(string_of_value)->reverse
       let ts = ts->map(string_of_term)
       String.concat("\n", list{...vs, xyz, ...ts})
     }
@@ -162,26 +188,30 @@ let shower_of_contextFrame = frm => {
 
 let show_ctx = ctx => {
   let ctx = ctx->map(shower_of_contextFrame)
-  let ctx = reduce(ctx, "???", (sofar, f) => f(sofar))
+  let ctx = reduce(ctx, "☐", (sofar, f) => f(sofar))
   blank(ctx)
 }
 
 let show_envFrm = (frm: environmentFrame) => {
-  React.array(
-    Array.map(frm.content, xv => {
-      let (x, v) = xv
-      let ov = v.contents
-      let v = switch ov {
-      | None => "💣"
-      | Some(v) => string_of_value(v)
-      }
-      <div className="bind">
-        {blank(x)}
-        {React.string("↦")}
-        {blank(v)}
-      </div>
-    }),
-  )
+  if Array.length(frm.content) == 0 {
+    React.string(" nothing")
+  } else {
+    React.array(
+      Array.map(frm.content, xv => {
+        let (x, v) = xv
+        let ov = v.contents
+        let v = switch ov {
+        | None => "💣"
+        | Some(v) => string_of_value(v)
+        }
+        <div className="bind">
+          {blank(x)}
+          {React.string("↦")}
+          {blank(v)}
+        </div>
+      }),
+    )
+  }
 }
 
 let show_env = (env: environment) => {
@@ -198,15 +228,13 @@ let show_one_env = (env: environment): React.element => {
       let {id, content} = frm
       <div className="env-frame box">
         <p>
-          {label("@")}
+          {label("@ ")}
           {blank(id)}
         </p>
+        <p> {label("binds")} </p>
+        {show_envFrm(frm)}
         <p>
-          {label("binds")}
-          {show_envFrm(frm)}
-        </p>
-        <p>
-          {label("rest @")}
+          {label("rest @ ")}
           {show_env(rest)}
         </p>
       </div>
@@ -215,13 +243,44 @@ let show_one_env = (env: environment): React.element => {
 }
 
 let show_all_envs = () => {
-  React.array(all_envs.contents->map(show_one_env)->List.toArray)
+  React.array(all_envs.contents->reverse->map(show_one_env)->List.toArray)
 }
 
-let render_error = err => {
+exception Impossible
+let show_one_hav = (val: value): React.element => {
+  switch val {
+  | Fun(Udf(id, name, xs, body, env)) => {
+      let id = id->Int.toString
+      let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
+      let id = id ++ name
+      <div className="fun box">
+        <p>
+          {label("@ ")}
+          {blank(id)}
+        </p>
+        <p>
+          {label("environment @ ")}
+          {show_env(env)}
+        </p>
+        <p>
+          {label("Code ")}
+          {show_expr(Lam(xs->List.fromArray, body))}
+        </p>
+      </div>
+    }
+
+  | _ => raise(Impossible)
+  }
+}
+
+let show_all_havs = () => {
+  React.array(all_havs.contents->reverse->map(show_one_hav)->List.toArray)
+}
+
+let string_of_error = err => {
   switch err {
-  | UnboundIdentifier(symbol) => `The variable ${symbol} is not bound.`
-  | UsedBeforeInitialization(symbol) => `The variable ${symbol} hasn't be declared.`
+  | UnboundIdentifier(symbol) => `The variable ${symbol} hasn't be declared.`
+  | UsedBeforeInitialization(symbol) => `The variable ${symbol} hasn't be assigned a value.`
   | ExpectButGiven(string, _value) => `Expecting a ${string}.`
   | ArityMismatch(_arity, int) => `Expecting a function that accept ${Int.toString(int)} arguments`
   }
@@ -232,26 +291,24 @@ let show_stkFrm = (frm: stackFrame) => {
   <div className="stack-frame box">
     {label("Waiting for a value")}
     <p>
-      {label("in context")}
+      {label("in context ")}
       {show_ctx(ctx)}
     </p>
     <p>
-      {label("in environment @")}
+      {label("in environment @ ")}
       {show_env(env)}
     </p>
   </div>
 }
 
 let show_stack = (frms: list<React.element>) => {
-  <div>
-    <p> {label("Stack")} </p>
-    {React.array(frms->List.toArray)}
-  </div>
+  <div> {React.array(frms->List.toArray)} </div>
 }
 
 let show_state = (stack, now, envs, heap) => {
   <div id="smol-state">
     <div id="stack-and-now" className="column">
+      <p> {label("Stack Frames & Program Counter")} </p>
       <div> {stack} </div>
       <div className="now"> {now} </div>
     </div>
@@ -260,19 +317,30 @@ let show_state = (stack, now, envs, heap) => {
       {envs}
     </div>
     <div className="column">
-      <p> {label("The Heap")} </p>
+      <p> {label("Heap-allocated Values")} </p>
       {heap}
     </div>
   </div>
 }
 
-let render: state => React.element = s => {
+let render: Smol.state => React.element = s => {
   switch s {
-  | Terminated(Err(err)) =>
-    show_state(show_stack(list{}), React.string(render_error(err)), show_all_envs(), todo)
+  | Terminated(Err(err)) => {
+      let now =
+        <div className="box errored">
+          <p> {label("Errored")} </p>
+          {blank(string_of_error(err))}
+        </div>
+      show_state(show_stack(list{}), now, show_all_envs(), show_all_havs())
+    }
+
   | Terminated(Tm(vs)) => {
-      let now = React.string("terminated\n" ++ String.concat("\n", vs->map(string_of_value)))
-      show_state(show_stack(list{}), now, show_all_envs(), todo)
+      let now =
+        <div className="box terminated">
+          <p> {label("Terminated")} </p>
+          {blank(String.concat("\n", vs->reverse->map(string_of_value)))}
+        </div>
+      show_state(show_stack(list{}), now, show_all_envs(), show_all_havs())
     }
 
   | Continuing(App(f, vs, stt)) => {
@@ -281,19 +349,19 @@ let render: state => React.element = s => {
       let now =
         <div className="box calling">
           <p>
-            {label("Calling")}
+            {label("Calling ")}
             {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)}))}
           </p>
           <p>
-            {label("in context")}
+            {label("in context ")}
             {show_ctx(ctx)}
           </p>
           <p>
-            {label("in environment")}
+            {label("in environment @ ")}
             {show_env(env)}
           </p>
         </div>
-      show_state(stk, now, show_all_envs(), todo)
+      show_state(stk, now, show_all_envs(), show_all_havs())
     }
 
   | Continuing(Setting(x, v, stt)) => {
@@ -302,21 +370,21 @@ let render: state => React.element = s => {
       let now =
         <div className="box replacing">
           <p>
-            {label("Replacing the value of")}
+            {label("Replacing the value of ")}
             {blank(x)}
-            {label("with")}
+            {label(" with ")}
             {show_value(v)}
           </p>
           <p>
-            {label("in context")}
+            {label("in context ")}
             {show_ctx(ctx)}
           </p>
           <p>
-            {label("in environment")}
+            {label("in environment @ ")}
             {show_env(env)}
           </p>
         </div>
-      show_state(stk, now, show_all_envs(), todo)
+      show_state(stk, now, show_all_envs(), show_all_havs())
     }
 
   | Continuing(Returning(v, stk)) => {
@@ -324,11 +392,11 @@ let render: state => React.element = s => {
       let now =
         <div className="box returning">
           <p>
-            {label("Returning")}
+            {label("Returning ")}
             {show_value(v)}
           </p>
         </div>
-      show_state(stk, now, show_all_envs(), todo)
+      show_state(stk, now, show_all_envs(), show_all_havs())
     }
   }
 }

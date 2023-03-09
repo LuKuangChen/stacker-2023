@@ -59,7 +59,7 @@ and function =
   // primitives
   | Prm(primitive)
   // User-Defined Functions
-  | Udf(array<symbol>, block, environment)
+  | Udf(int, ref<option<string>>, array<symbol>, block, environment)
 and value =
   // the Unit value
   | Uni
@@ -106,7 +106,8 @@ type runtime_error =
   | ArityMismatch(arity, int)
 exception RuntimeError(runtime_error)
 
-let new_env_id = () => Js.Math.random_int(0, 1000)
+let new_hav_id = () => Js.Math.random_int(10, 100)
+let new_env_id = () => Js.Math.random_int(100, 1000)
 
 module IntHash = Belt.Id.MakeHashable({
   type t = int
@@ -115,6 +116,9 @@ module IntHash = Belt.Id.MakeHashable({
 })
 
 let all_envs = ref(list{})
+
+// hav = Heap-Allocated Values
+let all_havs: ref<list<value>> = ref(list{})
 
 let extend = (env, xs): environment => {
   let id = new_env_id()
@@ -153,6 +157,15 @@ let doRef = (env, x) => {
   }
 }
 let doSet = (env: environment, x, v) => {
+  switch v {
+  | Fun(Udf(_id, name, _xs, _env, _body)) =>
+    switch name.contents {
+    | None => name := Some(x)
+    | _ => ()
+    }
+
+  | _ => ()
+  }
   lookup(env, x).contents = Some(v)
 }
 
@@ -322,7 +335,7 @@ and continue = (v: value, stt): state => {
     }
   }
 }
-and doEv = (exp : expression, stt) =>
+and doEv = (exp: expression, stt) =>
   switch exp {
   | Con(c) =>
     let val = Con(c)
@@ -333,9 +346,13 @@ and doEv = (exp : expression, stt) =>
   | Set(x, e) =>
     let exp = e
     doEv(exp, consCtx(Set1(x, ()), stt))
-  | Lam(xs, b) =>
-    let v = Fun(Udf(xs |> Js.List.toVector, b, stt.env))
-    continue(v, stt)
+  | Lam(xs, b) => {
+      let id = new_hav_id()
+      let v = Fun(Udf(id, ref(None), xs |> Js.List.toVector, b, stt.env))
+      all_havs := list{v, ...all_havs.contents}
+      continue(v, stt)
+    }
+
   | App(e, es) =>
     let exp = e
     doEv(exp, consCtx(App1((), es), stt))
@@ -389,7 +406,7 @@ and transitionCnd = (ebs, ob, stt) => {
 and doApp = (v, vs, stt): state => {
   switch asFun(v) {
   | Prm(p) => continue(delta(p, vs), stt)
-  | Udf(xs, b, env) =>
+  | Udf(_id, _name, xs, b, env) =>
     if Js.Array.length(xs) == Js.List.length(vs) {
       let env = extend(env, Js.Array.concat(xs, xsOfBlock(b)))
 
@@ -420,9 +437,14 @@ and doBlk = (b, stt): state => {
 // todo
 let load = (program: program) => {
   let xs = xsOfBlock((program, Con(Num(42.0))))
-  transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
+  all_envs := list{}
+  all_havs := list{}
+  try {
+    transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
+  } catch {
+  | RuntimeError(err) => Terminated(Err(err))
+  }
 }
-
 
 let transition = (state: continuing_state): state => {
   try {

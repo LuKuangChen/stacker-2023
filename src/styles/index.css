@@ -16,15 +16,9 @@
 code.blank {
     display: inline-block;
     white-space: pre-wrap;
-    padding: 0 1ex;
     color: black;
     background-color: white;
     vertical-align: top;
-    margin-right: 1ex;
-}
-
-code.blank:not(:first-child) {
-    margin-left: 1ex;
 }
 
 .now .calling {
@@ -35,6 +29,21 @@ code.blank:not(:first-child) {
 .now .returning {
     color: rgb(255, 255, 255);
     background-color: rgb(0, 0, 200);
+}
+
+.now .replacing {
+    color: rgb(255, 255, 255);
+    background-color: rgb(0, 0, 200);
+}
+
+.now .terminated {
+    color: rgb(255, 255, 255);
+    background-color: rgb(0, 0, 0);
+}
+
+.now .errored {
+    color: rgb(0, 0, 0);
+    background-color: rgb(255, 127, 121);
 }
 
 /* All three columns have margins. */
@@ -57,4 +66,10 @@ code.blank:not(:first-child) {
     padding: 1em;
     border-radius: 1ex;
     margin-top: 1ex;
+}
+
+.fun {
+    color: rgb(0, 0, 0);
+    background-color: rgb(193, 225, 151);
+
 }

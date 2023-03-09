@@ -1,0 +1,102 @@
+type running_state = {
+  prevs: list<React.element>,
+  now: React.element,
+  nexts: list<React.element>,
+  latestState: Smol.state,
+}
+
+type state =
+  | Editing
+  | Running(running_state)
+
+exception Impossible
+
+@react.component
+let make = () => {
+  let (program, setProgram) = React.useState(_ => "")
+  let (state, setState) = React.useState(_ => Editing)
+  let onRunClick = _evt => {
+    let s: Smol.state = Smol.load(
+      program->S_expr.stringToSource->S_expr.parse_many->Parse_smol.terms_of_sexprs,
+    )
+    setState(_ => Running({
+      prevs: list{},
+      nexts: list{},
+      now: Render.render(s),
+      latestState: s,
+    }))
+  }
+  let onStopClick = _evt => {
+    setState(_ => Editing)
+  }
+  let prevable = switch state {
+  | Editing => false
+  | Running({prevs, now, nexts, latestState}) =>
+    switch prevs {
+    | list{} => false
+    | list{e, ...prevs} => true
+    }
+  }
+  let onPrevClick = _evt => {
+    setState(state =>
+      switch state {
+      | Editing => raise(Impossible)
+      | Running({prevs, now, nexts, latestState}) =>
+        switch prevs {
+        | list{} => raise(Impossible)
+        | list{e, ...prevs} => Running({prevs, now: e, nexts: list{now, ...nexts}, latestState})
+        }
+      }
+    )
+  }
+  let onNextClick = _evt => {
+    setState(s => {
+      switch s {
+      | Editing => raise(Impossible)
+      | Running({prevs, now, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
+      | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
+          let latestState = Smol.transition(latestState)
+          Running({
+            prevs: list{now, ...prevs},
+            now: Render.render(latestState),
+            nexts: list{},
+            latestState,
+          })
+        }
+
+      | Running({prevs, now, nexts: list{e, ...nexts}, latestState}) =>
+        Running({
+          prevs: list{now, ...prevs},
+          now: e,
+          nexts,
+          latestState,
+        })
+      }
+    })
+  }
+  let nextable = switch state {
+  | Editing => false
+  | Running({prevs, now, nexts: list{}, latestState: Terminated(_)}) => false
+  | Running({prevs, now, nexts: list{}, latestState: Continuing(_)}) => true
+  | Running({prevs, now, nexts: list{_e, ..._nexts}, latestState}) => true
+  }
+  <div id="main">
+    <div id="control-panel">
+      <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
+      <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
+      <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
+      <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
+    </div>
+    <div id="row">
+      <div id="program-source">
+        <CodeEditor program setProgram editable={state == Editing} />
+      </div>
+      <div id="stacker">
+        {switch state {
+        | Editing => React.string("Click run to start tracing")
+        | Running(s) => s.now
+        }}
+      </div>
+    </div>
+  </div>
+}
