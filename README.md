@@ -2,10 +2,8 @@
 
 ## To-do items
 
-- colorring
-- render basic information like the Racket-based Stacker
+- support vectors
 - hover to highlight addresses
-- track history
 - track line numbers
 - improve messages of runtime errors
 - improve printing
