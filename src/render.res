@@ -194,7 +194,7 @@ let show_ctx = ctx => {
 
 let show_envFrm = (frm: environmentFrame) => {
   if Array.length(frm.content) == 0 {
-    React.string(" nothing")
+    React.string("(nothing)")
   } else {
     React.array(
       Array.map(frm.content, xv => {

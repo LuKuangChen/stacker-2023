@@ -73,3 +73,8 @@ code.blank {
     background-color: rgb(193, 225, 151);
 
 }
+
+.box > p {
+    margin-top: 0.5ex;
+    margin-bottom: 0.5ex;
+}
