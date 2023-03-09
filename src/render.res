@@ -60,7 +60,7 @@ let string_of_expr_lam = (xs, b) => {
 }
 
 let string_of_expr_app = (e, es) => {
-  string_of_list(list{"#%app", e, ...es})
+  string_of_list(list{e, ...es})
 }
 
 let string_of_expr_cnd = (ebs, ob) => {
@@ -76,7 +76,7 @@ let string_of_expr_cnd = (ebs, ob) => {
 let rec string_of_expr = (e: expression): string => {
   switch e {
   | Con(c) => string_of_constant(c)
-  | Ref(x) => "#%ref." ++ String.escaped(x)
+  | Ref(x) => x
   | Set(x, e) => string_of_expr_set(x, string_of_expr(e))
   | Lam(xs, b) => string_of_expr_lam(xs, string_of_block(b))
   | App(e, es) => string_of_expr_app(string_of_expr(e), es->map(string_of_expr))
@@ -187,7 +187,7 @@ let show_envFrm = (frm: environmentFrame) => {
 let show_env = (env: environment) => {
   switch env {
   | list{} => raise(Impossible("An environment must have at least one frame."))
-  | list{frm, ..._rest} => blank("@" ++ frm.id)
+  | list{frm, ..._rest} => blank(frm.id)
   }
 }
 
@@ -196,7 +196,7 @@ let show_one_env = (env: environment): React.element => {
   | list{} => raise(Impossible("An environment must have at least one frame."))
   | list{frm, ...rest} => {
       let {id, content} = frm
-      <div className="env-frame">
+      <div className="env-frame box">
         <p>
           {label("@")}
           {blank(id)}
@@ -229,13 +229,14 @@ let render_error = err => {
 
 let show_stkFrm = (frm: stackFrame) => {
   let (ctx, env) = frm
-  <div>
+  <div className="stack-frame box">
+    {label("Waiting for a value")}
     <p>
-      {React.string("Waiting for a value in")}
+      {label("in context")}
       {show_ctx(ctx)}
     </p>
     <p>
-      {React.string("where")}
+      {label("in environment @")}
       {show_env(env)}
     </p>
   </div>
@@ -243,7 +244,7 @@ let show_stkFrm = (frm: stackFrame) => {
 
 let show_stack = (frms: list<React.element>) => {
   <div>
-    <div> {React.string("Stack")} </div>
+    <p> {label("Stack")} </p>
     {React.array(frms->List.toArray)}
   </div>
 }
@@ -278,7 +279,7 @@ let render: state => React.element = s => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->map(show_stkFrm))
       let now =
-        <div className="calling">
+        <div className="box calling">
           <p>
             {label("Calling")}
             {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)}))}
@@ -299,7 +300,7 @@ let render: state => React.element = s => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->map(show_stkFrm))
       let now =
-        <div className="replacing">
+        <div className="box replacing">
           <p>
             {label("Replacing the value of")}
             {blank(x)}
@@ -321,7 +322,7 @@ let render: state => React.element = s => {
   | Continuing(Returning(v, stk)) => {
       let stk = show_stack(stk->map(show_stkFrm))
       let now =
-        <div className="returning">
+        <div className="box returning">
           <p>
             {label("Returning")}
             {show_value(v)}

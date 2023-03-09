@@ -5,7 +5,7 @@ type state =
 exception Impossible
 
 @react.component
-let make = () => {
+let Root = () => {
   let (program, setProgram) = React.useState(_ => "")
   let (state, setState) = React.useState(_ => Editing)
   let onRunClick = _evt => {
@@ -37,7 +37,7 @@ let make = () => {
     <div id="control-panel">
       <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
       <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
-      <button onClick=onPrevClick disabled={state == Editing}> {React.string("Prev")} </button>
+      <button onClick=onPrevClick disabled={state == Editing}> {React.string("Previous")} </button>
       <button onClick=onNextClick disabled={runningButNotTerminated}> {React.string("Next")} </button>
     </div>
     <div id="row">

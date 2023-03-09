@@ -27,10 +27,6 @@ code.blank:not(:first-child) {
     margin-left: 1ex;
 }
 
-.now>* {
-    padding: 1em;
-}
-
 .now .calling {
     color: rgb(0, 0, 0);
     background-color: rgb(255, 187, 0);
@@ -46,8 +42,19 @@ code.blank:not(:first-child) {
     margin-left: 1em;
     margin-right: 1em;
 }
+
 .env-frame {
-    padding: 1em;
     color: black;
-    background-color: rgb(65,188,118)
+    background-color: rgb(65, 188, 118)
+}
+
+.stack-frame {
+    color: rgb(0, 0, 0);
+    background-color: rgb(255, 187, 0);
+}
+
+.box {
+    padding: 1em;
+    border-radius: 1ex;
+    margin-top: 1ex;
 }
