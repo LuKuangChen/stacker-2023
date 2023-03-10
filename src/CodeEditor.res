@@ -1,3 +1,8 @@
+module SMoLCodeMirror = {
+  @react.component @module("./my-code-mirror")
+  external make: (~value: string, ~onChange: string => ()) => React.element = "default"
+}
+
 @react.component
 let make = (~program, ~setProgram, ~editable) => {
   // let output = switch S_expr.parse_many(program |> S_expr.stringToSource) {
@@ -8,12 +13,15 @@ let make = (~program, ~setProgram, ~editable) => {
   //   `This character (${string}) can't be escaped.`
   // | exception S_expr.WantSExprFoundRP(_source) => "Unexpected right parenthesis."
   // }
-  let onChange = evt => {
-    ReactEvent.Form.preventDefault(evt)
-    setProgram(_ => ReactEvent.Form.target(evt)["value"])
+  let onChange = s => {
+    setProgram(_ => s)
   }
   // <div>
-    <textarea value=program onChange disabled={!editable} rows=17 cols=30 />
-    // <p> {React.string(output)} </p>
+  <SMoLCodeMirror
+    value=program
+    onChange={onChange}
+  />
+  // <textarea value=program onChange disabled={!editable} rows=17 cols=30 />
+  // <p> {React.string(output)} </p>
   // </div>
 }
