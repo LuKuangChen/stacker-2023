@@ -7,9 +7,13 @@ type atom =
   | Str(string)
   | Sym(string)
 
+type bracket =
+  | Round
+  | Square
+
 type rec pre_sexpr =
   | Atom(atom)
-  | List(list<sexpr>)
+  | List(bracket, list<sexpr>)
 and sexpr = annotated<pre_sexpr>
 
 type source = {srcloc: srcloc, i: int, content: string}
@@ -40,7 +44,7 @@ let case_source = source => {
 exception WantSExprFoundEOF
 exception WantStringFoundEOF
 exception WantEscapableCharFound(string)
-exception WantSExprFoundRP(source)
+exception WantSExprFoundRP(bracket, source)
 
 let rec stringOfList = xs => {
   switch xs {
@@ -56,7 +60,9 @@ let parse_sym = (chr, src: source): (sexpr, source) => {
     | None => end()
     | Some(("(", _src)) => end()
     | Some((")", _src)) => end()
-    | Some(("\"", _src)) => end()
+    | Some(("[", _src)) => end()
+    | Some(("]", _src)) => end()
+    | Some((`"`, _src)) => end()
     | Some((chr, src1)) =>
       if Js.Re.test_(%re("/\s+/ig"), chr) {
         end()
@@ -73,44 +79,61 @@ let parse_str = (src: source): (sexpr, source) => {
   let rec loop = (cs, src) => {
     switch case_source(src) {
     | None => raise(WantStringFoundEOF)
-    | Some(("\"", src)) => (Atom(Sym(stringOfList(Belt.List.reverse(cs)))), src)
-    | Some(("\\", src)) => escapting(cs, src)
-    | Some((chr, src)) => loop(list{chr, ...cs}, src)
+    | Some((`"`, src)) => (Atom(Str(stringOfList(Belt.List.reverse(cs)))), src)
+    | Some((chr, src)) =>
+      if chr == "\\" {
+        escapting(cs, src)
+      } else {
+        loop(list{chr, ...cs}, src)
+      }
     }
   }
   and escapting = (cs, src) => {
     switch case_source(src) {
     | None => raise(WantStringFoundEOF)
-    | Some(("\"", src)) => loop(list{"\"", ...cs}, src)
-    | Some(("\\", src)) => loop(list{"\\", ...cs}, src)
+    | Some((`"`, src)) => loop(list{`"`, ...cs}, src)
     | Some(("r", src)) => loop(list{"\r", ...cs}, src)
     | Some(("t", src)) => loop(list{"\t", ...cs}, src)
     | Some(("n", src)) => loop(list{"\n", ...cs}, src)
-    | Some((chr, src)) => raise(WantEscapableCharFound(chr))
+    | Some((chr, src)) =>
+      if chr == "\\" {
+        loop(list{"\\", ...cs}, src)
+      } else {
+        raise(WantEscapableCharFound(chr))
+      }
     }
   }
   loop(list{}, src)
 }
 
+exception MismatchedBracket(bracket, bracket)
 let rec parse_one = (src: source): (sexpr, source) => {
   switch case_source(src) {
   | None => raise(WantSExprFoundEOF)
-  | Some(("(", src)) => start_parse_list(src.srcloc, src)
-  | Some((")", src)) => raise(WantSExprFoundRP(src))
-  | Some(("\"", src)) => parse_str(src)
-  | Some((chr, src)) =>
-    if Js.Re.test_(%re("/\s+/ig"), chr) {
-      parse_one(src)
-    } else {
-      parse_sym(chr, src)
+  | Some(("(", src)) => start_parse_list(Round, src.srcloc, src)
+  | Some(("[", src)) => start_parse_list(Square, src.srcloc, src)
+  | Some((")", src)) => raise(WantSExprFoundRP(Round, src))
+  | Some(("]", src)) => raise(WantSExprFoundRP(Square, src))
+  | Some((`"`, src)) => parse_str(src)
+  | Some((chr, src)) => {
+      // Js.log(`This one character is: "${chr}".`)
+      if Js.Re.test_(%re("/\s+/ig"), chr) {
+        parse_one(src)
+      } else {
+        parse_sym(chr, src)
+      }
     }
   }
 }
-and start_parse_list = (start, src) => {
+and start_parse_list = (bracket1, _start, src) => {
   let rec parse_list = (elms, src) => {
     switch parse_one(src) {
     | (elm, src) => parse_list(list{elm, ...elms}, src)
-    | exception WantSExprFoundRP(src) => (List(Belt.List.reverse(elms)), src)
+    | exception WantSExprFoundRP(bracket2, src) => if bracket1 == bracket2 {
+        (List(bracket1, Belt.List.reverse(elms)), src)
+      } else {
+        raise(MismatchedBracket(bracket1, bracket2))
+      }
     }
   }
   parse_list(list{}, src)
@@ -130,13 +153,12 @@ let rec stringOfSexpr = e =>
   switch e {
   | Atom(Sym(s)) => s
   | Atom(Str(s)) => "str:" ++ s
-  | List(list{}) => "()"
-  | List(list{x, ...xs}) => {
+  | List(_b, list{}) => "()"
+  | List(_b, list{x, ...xs}) => {
       let stringOfXs = stringOfList(Belt.List.map(xs, x => " " ++ stringOfSexpr(x)))
       "(" ++ stringOfSexpr(x) ++ stringOfXs ++ ")"
     }
   }
-
-let rec stringOfManySexprs = es => {
-  List.map(e => {stringOfSexpr(e) ++ "\n"}, es) |> stringOfList
-}
+// let rec stringOfManySexprs = es => {
+//   List.map(e => {stringOfSexpr(e) ++ "\n"}, es) |> stringOfList
+// }

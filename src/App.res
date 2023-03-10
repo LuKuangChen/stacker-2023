@@ -31,10 +31,10 @@ let make = () => {
   }
   let prevable = switch state {
   | Editing => false
-  | Running({prevs, now, nexts, latestState}) =>
+  | Running({prevs, now:_, nexts:_, latestState:_}) =>
     switch prevs {
     | list{} => false
-    | list{e, ...prevs} => true
+    | list{_e, ..._prevs} => true
     }
   }
   let onPrevClick = _evt => {
@@ -53,7 +53,7 @@ let make = () => {
     setState(s => {
       switch s {
       | Editing => raise(Impossible)
-      | Running({prevs, now, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
+      | Running({prevs:_, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
       | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
           let latestState = Smol.transition(latestState)
           Running({
@@ -76,9 +76,9 @@ let make = () => {
   }
   let nextable = switch state {
   | Editing => false
-  | Running({prevs, now, nexts: list{}, latestState: Terminated(_)}) => false
-  | Running({prevs, now, nexts: list{}, latestState: Continuing(_)}) => true
-  | Running({prevs, now, nexts: list{_e, ..._nexts}, latestState}) => true
+  | Running({prevs:_, now:_, nexts: list{}, latestState: Terminated(_)}) => false
+  | Running({prevs:_, now:_, nexts: list{}, latestState: Continuing(_)}) => true
+  | Running({prevs:_, now:_, nexts: list{_e, ..._nexts}, latestState:_}) => true
   }
   <div id="main">
     <div id="control-panel">

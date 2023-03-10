@@ -4,9 +4,9 @@ This file convert smol states to react elements.
 
 */
 
-open Smol
 open Belt
 open List
+open Smol
 
 let todo = React.string("TODO")
 
@@ -35,6 +35,12 @@ let string_of_prm = (o: primitive) => {
   | Le => "<="
   | Ge => ">="
   | Ne => "!="
+  | VecNew => "vec"
+  | VecRef => "vec-ref"
+  | VecSet => "vec-set!"
+  | VecLen => "vec-len"
+  | Eqv => "eqv?"
+  | Error => "error"
   }
 }
 
@@ -50,11 +56,16 @@ let string_of_function = (f: Smol.function) => {
   }
 }
 
+// let string_of_vector = (_v: array<value>) => {
+//   "#<vector>"
+// }
+
 let string_of_value = v => {
   switch v {
   | Uni => "#<void>"
   | Con(c) => string_of_constant(c)
   | Fun(f) => string_of_function(f)
+  | Vec(id, _v) => "@" ++ Int.toString(id) // string_of_vector(v)
   }
 }
 
@@ -70,10 +81,14 @@ let string_of_def_var = (x, e) => {
   string_of_list(list{"defvar", x, e})
 }
 
+let indent = (s, i) => {
+  let pad = Js.String.repeat(i, " ")
+  Js.String.replaceByRe(%re("/\n/g"), "\n" ++ pad, s)
+}
+
 let string_of_def_fun = (f, xs, b) => {
   // string_of_list(list{"deffun", string_of_list(list{f, ...xs}), b})
-  let b = Js.String.replace("\n", "\n  ", b)
-  "(" ++ "deffun" ++ " " ++ string_of_list(list{f, ...xs}) ++ "\n  " ++ b ++ ")"
+  "(" ++ "deffun" ++ " " ++ string_of_list(list{f, ...xs}) ++ "\n  " ++ indent(b, 2) ++ ")"
 }
 
 let string_of_expr_set = (x, e) => {
@@ -81,22 +96,35 @@ let string_of_expr_set = (x, e) => {
 }
 
 let string_of_expr_lam = (xs, b) => {
-  let b = Js.String.replace("\n", "\n  ", b)
-  "(" ++ "lambda" ++ " " ++ string_of_list(xs) ++ "\n  " ++ b ++ ")"
+  "(" ++ "lambda" ++ " " ++ string_of_list(xs) ++ "\n  " ++ indent(b, 2) ++ ")"
 }
 
 let string_of_expr_app = (e, es) => {
   string_of_list(list{e, ...es})
 }
 
-let string_of_expr_cnd = (ebs, ob) => {
+let string_of_expr_bgn = b => {
+  "(" ++ b ++ ")"
+}
+
+let string_of_expr_cnd = (ebs: list<(string, string)>, ob) => {
   let ebs = {
     switch ob {
     | None => ebs
-    | Some(b) => list{...ebs, b}
+    | Some(b) => list{...ebs, ("else", b)}
     }
   }
-  string_of_list(list{"cond", ...ebs})
+  let ebs = ebs->map(((e, b)) => `[${e}\n ${indent(b, 1)}]`)
+  let ebs = String.concat("\n", ebs)
+  "(" ++ "cond\n  " ++ indent(ebs, 2) ++ ")"
+}
+
+let string_of_expr_let = (xes, b) => {
+  let xes = xes->map(((x, e)) => {
+    `[${x} ${indent(e, 2 + String.length(x))}]`
+  })
+  let xes = String.concat("\n", xes)
+  `(let ${indent(xes, 5)}\n${indent(b, 2)}`
 }
 
 let rec string_of_expr = (e: expression): string => {
@@ -106,7 +134,9 @@ let rec string_of_expr = (e: expression): string => {
   | Set(x, e) => string_of_expr_set(x, string_of_expr(e))
   | Lam(xs, b) => string_of_expr_lam(xs, string_of_block(b))
   | App(e, es) => string_of_expr_app(string_of_expr(e), es->map(string_of_expr))
+  | Let(xes, b) => string_of_expr_let(xes->map(string_of_xe), string_of_block(b))
   | Cnd(ebs, ob) => string_of_expr_cnd(ebs->map(string_of_eb), string_of_ob(ob))
+  | Bgn(b) => string_of_expr_bgn(string_of_block(b))
   }
 }
 and string_of_def = (d: definition): string => {
@@ -115,12 +145,16 @@ and string_of_def = (d: definition): string => {
   | Fun(f, xs, b) => string_of_def_fun(f, xs, string_of_block(b))
   }
 }
+and string_of_xe = xe => {
+  let (x, e) = xe
+  (x, string_of_expr(e))
+}
 and string_of_eb = eb => {
   let (e, b) = eb
-  string_of_expr(e) ++ "\n" ++ string_of_block(b)
+  (string_of_expr(e), string_of_block(b))
 }
 and string_of_ob = ob => {
-  Option.map(ob, string_of_block)
+  ob->Option.map(string_of_block)
 }
 and string_of_block = b => {
   let (ts, e) = b
@@ -148,6 +182,13 @@ let show_value = e => {
 let shower_of_contextFrame = frm => {
   switch frm {
   | Set1(x, ()) => xyz => string_of_expr_set(x, xyz)
+  | Let1(xvs, (x, ()), xes, b) =>
+    xyz => {
+      let xvs = xvs->List.map(((x, v)) => (x, string_of_value(v)))
+      let xes = xes->List.map(((x, e)) => (x, string_of_expr(e)))
+      let x_s = list{...xvs->reverse, (x, xyz), ...xes}
+      string_of_expr_let(x_s, string_of_block(b))
+    }
   | App1((), es) => xyz => string_of_expr_app(xyz, es->map(string_of_expr))
   | App2(v, vs, (), es) =>
     xyz => {
@@ -157,7 +198,7 @@ let shower_of_contextFrame = frm => {
     }
   | Cnd1((), b, ebs, ob) =>
     xyz => {
-      let eb = xyz ++ "\n" ++ string_of_block(b)
+      let eb = (xyz, string_of_block(b))
       let ebs = list{eb, ...ebs->map(string_of_eb)}
       string_of_expr_cnd(ebs, string_of_ob(ob))
     }
@@ -225,7 +266,7 @@ let show_one_env = (env: environment): React.element => {
   switch env {
   | list{} => raise(Impossible("An environment must have at least one frame."))
   | list{frm, ...rest} => {
-      let {id, content} = frm
+      let {id, content: _} = frm
       <div className="env-frame box">
         <p>
           {label("@ ")}
@@ -269,6 +310,30 @@ let show_one_hav = (val: value): React.element => {
       </div>
     }
 
+  | Vec(id, vs) => {
+      let id = id->Int.toString
+      <div className="vec box">
+        <p>
+          {label("@ ")}
+          {blank(id)}
+        </p>
+        <p>
+          {label("vec")}
+          {React.array(
+            vs
+            ->Array.map(string_of_value)
+            ->Array.map(blank)
+            ->Array.map(e =>
+              <span>
+                {React.string(" ")}
+                {e}
+              </span>
+            ),
+          )}
+        </p>
+      </div>
+    }
+
   | _ => raise(Impossible)
   }
 }
@@ -283,6 +348,11 @@ let string_of_error = err => {
   | UsedBeforeInitialization(symbol) => `The variable ${symbol} hasn't be assigned a value.`
   | ExpectButGiven(string, _value) => `Expecting a ${string}.`
   | ArityMismatch(_arity, int) => `Expecting a function that accept ${Int.toString(int)} arguments`
+  | OutOfBound(length, index) =>
+    `Expecting an index less than the length of the vector (${Int.toString(
+        length,
+      )}), found ${Int.toString(index)}`
+  | UserRaised(message) => message
   }
 }
 
@@ -302,13 +372,13 @@ let show_stkFrm = (frm: stackFrame) => {
 }
 
 let show_stack = (frms: list<React.element>) => {
-  <div> {React.array(frms->List.toArray)} </div>
+  <div> {React.array(frms->reverse->List.toArray)} </div>
 }
 
 let show_state = (stack, now, envs, heap) => {
   <div id="smol-state">
     <div id="stack-and-now" className="column">
-      <p> {label("Stack Frames & Program Counter")} </p>
+      <p> {label("Stack Frames & The Program Counter")} </p>
       <div> {stack} </div>
       <div className="now"> {now} </div>
     </div>
@@ -374,6 +444,31 @@ let render: Smol.state => React.element = s => {
             {blank(x)}
             {label(" with ")}
             {show_value(v)}
+          </p>
+          <p>
+            {label("in context ")}
+            {show_ctx(ctx)}
+          </p>
+          <p>
+            {label("in environment @ ")}
+            {show_env(env)}
+          </p>
+        </div>
+      show_state(stk, now, show_all_envs(), show_all_havs())
+    }
+
+  | Continuing(VecSetting((id, _vs), i, v_val, stt)) => {
+      let {ctx, env, stk} = stt
+      let stk = show_stack(stk->map(show_stkFrm))
+      let now =
+        <div className="box replacing">
+          <p>
+            {label("Replacing the ")}
+            {blank(i->Int.toString)}
+            {label("-th element of ")}
+            {blank("@" ++ Int.toString(id))}
+            {label(" with ")}
+            {show_value(v_val)}
           </p>
           <p>
             {label("in context ")}

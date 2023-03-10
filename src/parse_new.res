@@ -12,10 +12,10 @@ module P1 = {
 let rec takeWhile = (pred, ls) => {
   switch ls {
   | list{} => (list{}, list{})
-  | list{x, ...xs} =>
-    if pred(x) {
-      let (ls1, ls2) = takeWhile(pred, ls)
-      (list{x, ...ls1}, ls2)
+  | list{fst, ...rest} =>
+    if pred(fst) {
+      let (ls1, ls2) = takeWhile(pred, rest)
+      (list{fst, ...ls1}, ls2)
     } else {
       (list{}, ls)
     }

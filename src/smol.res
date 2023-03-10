@@ -12,8 +12,10 @@ type rec expression =
   | Ref(symbol)
   | Set(symbol, expression)
   | Lam(list<symbol>, block)
+  | Let(list<(symbol, expression)>, block)
   | App(expression, list<expression>)
   | Cnd(list<(expression, block)>, option<block>)
+  | Bgn(block)
 and block = (list<term>, expression)
 and definition =
   | Var(symbol, expression)
@@ -49,12 +51,19 @@ type primitive =
   | Le
   | Ge
   | Ne
+  | VecNew
+  | VecRef
+  | VecSet
+  | VecLen
+  | Eqv
+  | Error
 
 type rec environmentFrame = {
   id: string,
   content: array<(symbol, ref<option<value>>)>,
 }
 and environment = list<environmentFrame>
+and vector = (int, array<value>)
 and function =
   // primitives
   | Prm(primitive)
@@ -67,6 +76,8 @@ and value =
   | Con(constant)
   // Functions
   | Fun(function)
+  // Vectors
+  | Vec(vector)
 
 let initialEnv: environment = list{
   {
@@ -82,6 +93,13 @@ let initialEnv: environment = list{
       ("<=", ref(Some(Fun(Prm(Le))))),
       (">=", ref(Some(Fun(Prm(Ge))))),
       ("!=", ref(Some(Fun(Prm(Ne))))),
+      ("eqv?", ref(Some(Fun(Prm(Eqv))))),
+      ("vec", ref(Some(Fun(Prm(VecNew))))),
+      ("mvec", ref(Some(Fun(Prm(VecNew))))),
+      ("vec-ref", ref(Some(Fun(Prm(VecRef))))),
+      ("vec-set!", ref(Some(Fun(Prm(VecSet))))),
+      ("vec-len", ref(Some(Fun(Prm(VecLen))))),
+      ("error", ref(Some(Fun(Prm(Error))))),
     ],
   },
 }
@@ -104,10 +122,12 @@ type runtime_error =
   | UsedBeforeInitialization(symbol)
   | ExpectButGiven(string, value)
   | ArityMismatch(arity, int)
+  | OutOfBound(int, int)
+  | UserRaised(string)
 exception RuntimeError(runtime_error)
 
-let new_hav_id = () => Js.Math.random_int(10, 100)
-let new_env_id = () => Js.Math.random_int(100, 1000)
+let new_hav_id = () => Js.Math.random_int(100, 1000)
+let new_env_id = () => Js.Math.random_int(1000, 10000)
 
 module IntHash = Belt.Id.MakeHashable({
   type t = int
@@ -121,14 +141,18 @@ let all_envs = ref(list{})
 let all_havs: ref<list<value>> = ref(list{})
 
 let extend = (env, xs): environment => {
-  let id = new_env_id()
-  let frm = {
-    id: Int.toString(id),
-    content: xs |> Js.Array.map(x => (x, ref(None))),
+  if Array.length(xs) == 0 {
+    env
+  } else {
+    let id = new_env_id()
+    let frm = {
+      id: Int.toString(id),
+      content: xs |> Js.Array.map(x => (x, ref(None))),
+    }
+    let env = list{frm, ...env}
+    all_envs := list{env, ...all_envs.contents}
+    env
   }
-  let env = list{frm, ...env}
-  all_envs := list{env, ...all_envs.contents}
-  env
 }
 
 let ifNone = (thunk: unit => 'X, o: option<'X>): 'X => {
@@ -173,6 +197,7 @@ type contextFrame =
   | Set1(symbol, unit)
   | App1(unit, list<expression>)
   | App2(value, list<value>, unit, list<expression>)
+  | Let1(list<(symbol, value)>, (symbol, unit), list<(symbol, expression)>, block)
   | Cnd1(unit, block, list<(expression, block)>, option<block>)
   | BgnDef(symbol, unit, block)
   | BgnExp(unit, block)
@@ -206,6 +231,7 @@ type terminated_state =
 type continuing_state =
   | App(value, list<value>, commomState)
   | Setting(symbol, value, commomState)
+  | VecSetting(vector, int, value, commomState)
   | Returning(value, stack)
 type state =
   | Terminated(terminated_state)
@@ -215,6 +241,11 @@ let asNum = v =>
   switch v {
   | Con(Num(v)) => v
   | _else => raise(RuntimeError(ExpectButGiven("number", v)))
+  }
+let asStr = v =>
+  switch v {
+  | Con(Str(v)) => v
+  | _else => raise(RuntimeError(ExpectButGiven("string", v)))
   }
 let asLgc = v =>
   switch v {
@@ -226,11 +257,26 @@ and asFun = v =>
   | Fun(f) => f
   | _else => raise(RuntimeError(ExpectButGiven("function", v)))
   }
+and asVec = v =>
+  switch v {
+  | Vec(id, f) => (id, f)
+  | _else => raise(RuntimeError(ExpectButGiven("vector", v)))
+  }
 
 let doAdd = (u, v) => Con(Num(asNum(u) +. asNum(v)))
 
-let pushStk = (env, stt) => {
-  {ctx: list{}, env, stk: list{(stt.ctx, stt.env), ...stt.stk}}
+let pushStk = (new_env, {ctx, env, stk}) => {
+  switch ctx {
+  // tail-call optimization
+  | list{} => {ctx: list{}, env: new_env, stk}
+  | _ =>
+    if new_env === env {
+      // no need to push stack if the environment is the same
+      {ctx, env, stk}
+    } else {
+      {ctx: list{}, env: new_env, stk: list{(ctx, env), ...stk}}
+    }
+  }
 }
 
 let deltaNum1 = (f, v, vs) => {
@@ -264,6 +310,20 @@ let deltaCmp = (cmp, v, vs): value => {
   Con(Lgc(loop(v, vs)))
 }
 
+let eqv2 = (u, v) => {
+  u == v
+}
+
+let deltaEq = (cmp, v, vs): value => {
+  let rec loop = (v1, vs) => {
+    switch vs {
+    | list{} => true
+    | list{v2, ...vs} => cmp(v1, v2) && loop(v2, vs)
+    }
+  }
+  Con(Lgc(loop(v, vs)))
+}
+
 let arityOf = p =>
   switch p {
   | Add => AtLeast(1)
@@ -276,21 +336,12 @@ let arityOf = p =>
   | Le => AtLeast(2)
   | Ge => AtLeast(2)
   | Ne => AtLeast(2)
-  }
-
-let delta = (p, vs) =>
-  switch (p, vs) {
-  | (Add, list{v, ...vs}) => deltaNum1((. a, b) => a +. b, v, vs)
-  | (Sub, list{v1, v2, ...vs}) => deltaNum2((. a, b) => a -. b, v1, v2, vs)
-  | (Mul, list{v, ...vs}) => deltaNum1((. a, b) => a *. b, v, vs)
-  | (Div, list{v1, v2, ...vs}) => deltaNum2((. a, b) => a /. b, v1, v2, vs)
-  | (Lt, list{v, ...vs}) => deltaCmp((a, b) => a < b, v, vs)
-  | (Eq, list{v, ...vs}) => deltaCmp((a, b) => a == b, v, vs)
-  | (Gt, list{v, ...vs}) => deltaCmp((a, b) => a > b, v, vs)
-  | (Le, list{v, ...vs}) => deltaCmp((a, b) => a <= b, v, vs)
-  | (Ge, list{v, ...vs}) => deltaCmp((a, b) => a >= b, v, vs)
-  | (Ne, list{v, ...vs}) => deltaCmp((a, b) => a != b, v, vs)
-  | _otherwise => raise(RuntimeError(ArityMismatch(arityOf(p), List.length(vs))))
+  | VecNew => AtLeast(0)
+  | VecRef => Exactly(2)
+  | VecSet => Exactly(3)
+  | VecLen => Exactly(1)
+  | Eqv => AtLeast(2)
+  | Error => Exactly(1)
   }
 
 exception Impossible(string)
@@ -298,6 +349,61 @@ let rec return = (v: value, stk): state => {
   switch stk {
   | list{} => raise(Impossible("Should have been handled by the top-level"))
   | list{(ctx, env), ...stk} => continue(v, {ctx, env, stk})
+  }
+}
+and delta = (p, vs) =>
+  switch (p, vs) {
+  | (Add, list{v, ...vs}) => continue(deltaNum1((. a, b) => a +. b, v, vs))
+  | (Sub, list{v1, v2, ...vs}) => continue(deltaNum2((. a, b) => a -. b, v1, v2, vs))
+  | (Mul, list{v, ...vs}) => continue(deltaNum1((. a, b) => a *. b, v, vs))
+  | (Div, list{v1, v2, ...vs}) => continue(deltaNum2((. a, b) => a /. b, v1, v2, vs))
+  | (Lt, list{v, ...vs}) => continue(deltaCmp((a, b) => a < b, v, vs))
+  | (Eq, list{v, ...vs}) => continue(deltaCmp((a, b) => a == b, v, vs))
+  | (Gt, list{v, ...vs}) => continue(deltaCmp((a, b) => a > b, v, vs))
+  | (Le, list{v, ...vs}) => continue(deltaCmp((a, b) => a <= b, v, vs))
+  | (Ge, list{v, ...vs}) => continue(deltaCmp((a, b) => a >= b, v, vs))
+  | (Ne, list{v, ...vs}) => continue(deltaCmp((a, b) => a != b, v, vs))
+  | (Eqv, list{v, ...vs}) => continue(deltaEq(eqv2, v, vs))
+  | (VecNew, vs) => {
+      let id = new_hav_id()
+      let v = Vec(id, List.toArray(vs))
+      all_havs := list{v, ...all_havs.contents}
+      continue(v)
+    }
+
+  | (VecLen, list{v}) => {
+      let (_id, vs) = asVec(v)
+      continue(Con(Num(vs->Array.length->Int.toFloat)))
+    }
+
+  | (VecRef, list{v_vec, v_ind}) => {
+      let (_id, vs) = asVec(v_vec)
+      let v_ind = asNum(v_ind)->Float.toInt
+      switch vs[v_ind] {
+      | None => raise(RuntimeError(OutOfBound(Array.length(vs), v_ind)))
+      | Some(v) => continue(v)
+      }
+    }
+
+  | (VecSet, list{v_vec, v_ind, v_val}) => {
+      let v_vec = asVec(v_vec)
+      let v_ind = asNum(v_ind)->Float.toInt
+      stt => Continuing(VecSetting(v_vec, v_ind, v_val, stt))
+    }
+
+  | (Error, list{v}) => {
+      let v = asStr(v)
+      _stt => Terminated(Err(UserRaised(v)))
+    }
+
+  | _otherwise => raise(RuntimeError(ArityMismatch(arityOf(p), List.length(vs))))
+  }
+and doVecSet = ((_id, vs), v_ind, v_val, stt) => {
+  if vs[v_ind] = v_val {
+    // The update is successful.
+    continue(Uni, stt)
+  } else {
+    raise(RuntimeError(OutOfBound(Array.length(vs), v_ind)))
   }
 }
 and setting = (x, v, stt) => {
@@ -310,6 +416,8 @@ and continue = (v: value, stt): state => {
   | Yes(ctxFrame, stt) =>
     switch ctxFrame {
     | Set1(x, ()) => Continuing(Setting(x, v, stt))
+    | Let1(xvs, (x, ()), xes, b) => transitionLet(list{(x, v), ...xvs}, xes, b, stt)
+
     | App1((), exps) =>
       let fun = v
       and vals = list{}
@@ -353,11 +461,34 @@ and doEv = (exp: expression, stt) =>
       continue(v, stt)
     }
 
+  | Let(xes, b) => transitionLet(list{}, xes, b, stt)
+
+  | Bgn(b) => {
+      let xs = xsOfBlock(b)
+      let env = extend(stt.env, xs)
+      transitionBgn(b, pushStk(env, stt))
+    }
+
   | App(e, es) =>
     let exp = e
     doEv(exp, consCtx(App1((), es), stt))
   | Cnd(ebs, ob) => transitionCnd(ebs, ob, stt)
   }
+and transitionLet = (xvs, xes, b, stt) => {
+  switch xes {
+  | list{} => {
+      let xvs = xvs->List.reverse->List.toArray
+      let xs = xvs->Array.map(((x, _v)) => x)
+      let env = extend(stt.env, Array.concat(xs, xsOfBlock(b)))
+      xvs->Array.forEach(((x, v)) => {
+        doSet(env, x, v)
+      })
+      transitionBgn(b, pushStk(env, stt))
+    }
+
+  | list{(x, e), ...xes} => doEv(e, consCtx(Let1(xvs, (x, ()), xes, b), stt))
+  }
+}
 and transitionBgn = ((ts, e), stt) => {
   switch ts {
   | list{} =>
@@ -405,7 +536,7 @@ and transitionCnd = (ebs, ob, stt) => {
 }
 and doApp = (v, vs, stt): state => {
   switch asFun(v) {
-  | Prm(p) => continue(delta(p, vs), stt)
+  | Prm(p) => delta(p, vs, stt)
   | Udf(_id, _name, xs, b, env) =>
     if Js.Array.length(xs) == Js.List.length(vs) {
       let env = extend(env, Js.Array.concat(xs, xsOfBlock(b)))
@@ -424,7 +555,15 @@ and doApp = (v, vs, stt): state => {
 }
 and transitionApp = (f: value, vs: list<value>, es: list<expression>, stt) => {
   switch es {
-  | list{} => Continuing(App(f, List.reverse(vs), stt))
+  | list{} => {
+      let vs = List.reverse(vs)
+      switch f {
+      // Don't pause if we are applying a primitive operator
+      | Fun(Prm(_)) => doApp(f, vs, stt)
+      | _ => Continuing(App(f, vs, stt))
+      }
+    }
+
   | list{e, ...es} =>
     let exp = e
     doEv(exp, consCtx(App2(f, vs, (), es), stt))
@@ -436,9 +575,9 @@ and doBlk = (b, stt): state => {
 
 // todo
 let load = (program: program) => {
-  let xs = xsOfBlock((program, Con(Num(42.0))))
   all_envs := list{}
   all_havs := list{}
+  let xs = xsOfBlock((program, Con(Num(42.0))))
   try {
     transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
   } catch {
@@ -451,6 +590,7 @@ let transition = (state: continuing_state): state => {
     switch state {
     | Returning(v, stk) => return(v, stk)
     | Setting(x, v, stt) => setting(x, v, stt)
+    | VecSetting(v, i, e, stt) => doVecSet(v, i, e, stt)
     // | Ev(exp, stt) => doEv(exp, stt)
     | App(f, vs, stt) => doApp(f, vs, stt)
     }

@@ -2,11 +2,9 @@
 
 ## To-do items
 
-- support vectors
 - hover to highlight addresses
 - track line numbers
 - improve messages of runtime errors
-- improve printing
 - improve parsing feedback
 - improve button look
 

@@ -74,7 +74,13 @@ code.blank {
 
 }
 
-.box > p {
+.vec {
+    color: rgb(255, 255, 255);
+    background-color: rgb(100, 100, 100);
+
+}
+
+.box>p {
     margin-top: 0.5ex;
     margin-bottom: 0.5ex;
 }
