@@ -96,7 +96,11 @@ let string_of_expr_set = (x, e) => {
 }
 
 let string_of_expr_lam = (xs, b) => {
+  // if String.contains(b, '\n') {
   "(" ++ "lambda" ++ " " ++ string_of_list(xs) ++ "\n  " ++ indent(b, 2) ++ ")"
+  // } else {
+  // "(" ++ "lambda" ++ " " ++ string_of_list(xs) ++ " " ++ b ++ ")"
+  // }
 }
 
 let string_of_expr_app = (e, es) => {
@@ -247,7 +251,7 @@ let show_envFrm = (frm: environmentFrame) => {
         }
         <div className="bind">
           {blank(x)}
-          {React.string("↦")}
+          {React.string(" ↦ ")}
           {blank(v)}
         </div>
       }),
@@ -380,6 +384,7 @@ let show_state = (stack, now, envs, heap) => {
     <div id="stack-and-now" className="column">
       <p> {label("Stack Frames & The Program Counter")} </p>
       <div> {stack} </div>
+      <hr />
       <div className="now"> {now} </div>
     </div>
     <div className="column">
