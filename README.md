@@ -1,13 +1,5 @@
 # Stacker
 
-## To-do items
-
-- hover to highlight addresses
-- track line numbers
-- improve messages of runtime errors
-- improve parsing feedback
-- improve button look
-
 ## Development
 
 Start the watch-compile
