@@ -233,7 +233,7 @@ let shower_of_contextFrame = frm => {
 
 let show_ctx = ctx => {
   let ctx = ctx->map(shower_of_contextFrame)
-  let ctx = reduce(ctx, "☐", (sofar, f) => f(sofar))
+  let ctx = reduce(ctx, "❓", (sofar, f) => f(sofar))
   blank(ctx)
 }
 
