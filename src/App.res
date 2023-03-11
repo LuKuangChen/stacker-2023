@@ -1,3 +1,5 @@
+open Belt
+
 type running_state = {
   prevs: list<React.element>,
   now: React.element,
@@ -14,10 +16,12 @@ exception Impossible
 @react.component
 let make = () => {
   let (program, setProgram) = React.useState(_ => "")
+  let (randomSeed, setRandomSeed) = React.useState(_ => None)
   let (state, setState) = React.useState(_ => Editing)
   let onRunClick = _evt => {
     let s: Smol.state = Smol.load(
       program->S_expr.stringToSource->S_expr.parse_many->Parse_smol.terms_of_sexprs,
+      randomSeed -> Option.getWithDefault(Js.Math.random() -> Float.toString)
     )
     setState(_ => Running({
       prevs: list{},
@@ -31,7 +35,7 @@ let make = () => {
   }
   let prevable = switch state {
   | Editing => false
-  | Running({prevs, now:_, nexts:_, latestState:_}) =>
+  | Running({prevs, now: _, nexts: _, latestState: _}) =>
     switch prevs {
     | list{} => false
     | list{_e, ..._prevs} => true
@@ -53,7 +57,7 @@ let make = () => {
     setState(s => {
       switch s {
       | Editing => raise(Impossible)
-      | Running({prevs:_, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
+      | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
       | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
           let latestState = Smol.transition(latestState)
           Running({
@@ -76,14 +80,25 @@ let make = () => {
   }
   let nextable = switch state {
   | Editing => false
-  | Running({prevs:_, now:_, nexts: list{}, latestState: Terminated(_)}) => false
-  | Running({prevs:_, now:_, nexts: list{}, latestState: Continuing(_)}) => true
-  | Running({prevs:_, now:_, nexts: list{_e, ..._nexts}, latestState:_}) => true
+  | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => false
+  | Running({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
+  | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   <main>
     <div id="control-panel">
       <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
       <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
+      <label>
+        {React.string("Random Seed =")}
+        <input
+          type_="text"
+          value={randomSeed->Option.getWithDefault("")}
+          onChange={evt => {
+            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+            setRandomSeed(_ => Some(newValue))
+          }}
+        />
+      </label>
       <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
       <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
     </div>

@@ -2,6 +2,26 @@
 
 open Belt
 
+@module("./random") external make_random: (string) => array<() => float> = "make_random"
+
+let random_int_of_random = (. random) => {
+  let f = (start, end) => {
+    let delta = end - start
+    let offset = Js.Math.round(random() *. Int.toFloat(delta))->Int.fromFloat
+    start + offset
+  }
+  f
+}
+
+let make_random_int = seed => {
+  // If I don't wrap the function in an array, Rescript will automatically collapse
+  // the two arrows and eta-expand the first function.
+  let random: () => float = Array.getExn(make_random(seed), 0)
+  random_int_of_random(. random)
+}
+
+let random_int = ref(make_random_int(Js.Math.random()->Float.toString))
+
 type symbol = string
 type constant =
   | Num(float)
@@ -126,8 +146,8 @@ type runtime_error =
   | UserRaised(string)
 exception RuntimeError(runtime_error)
 
-let new_hav_id = () => Js.Math.random_int(100, 1000)
-let new_env_id = () => Js.Math.random_int(1000, 10000)
+let new_hav_id = () => random_int.contents(100, 1000)
+let new_env_id = () => random_int.contents(1000, 10000)
 
 module IntHash = Belt.Id.MakeHashable({
   type t = int
@@ -574,9 +594,13 @@ and doBlk = (b, stt): state => {
 }
 
 // todo
-let load = (program: program) => {
+let load = (program: program, randomSeed: string) => {
+  // initialize all global things
   all_envs := list{}
   all_havs := list{}
+  random_int := make_random_int(randomSeed)
+
+  // now let's get started
   let xs = xsOfBlock((program, Con(Num(42.0))))
   try {
     transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
