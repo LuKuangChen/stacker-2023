@@ -1,5 +1,17 @@
 # Example Programs
 
+## Factorial
+
+```smol
+(deffun (fact n)
+  (cond
+    [(= n 0) 1]
+    [else
+     (* (fact (- n 1)) n)]))
+
+(fact 5)
+```
+
 ## The big complicated object example
 
 ```smol

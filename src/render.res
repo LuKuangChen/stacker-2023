@@ -376,26 +376,30 @@ let show_stkFrm = (frm: stackFrame) => {
 }
 
 let show_stack = (frms: list<React.element>) => {
-  <div> {React.array(frms->reverse->List.toArray)} </div>
+  if frms == list{} {
+    React.string("(No stack frames)")
+  } else {
+    <div> {React.array(frms->reverse->List.toArray)} </div>
+  }
 }
 
 let show_state = (stack, now, envs, heap) => {
-  <div id="smol-state">
+  React.array([
     <div id="stack-and-now" className="column">
-      <p> {label("Stack Frames & The Program Counter")} </p>
+      <h1> {label("Stack Frames & The Program Counter")} </h1>
       <div> {stack} </div>
       <hr />
       <div className="now"> {now} </div>
-    </div>
+    </div>,
     <div className="column">
-      <p> {label("Environments")} </p>
+      <h1> {label("Environments")} </h1>
       {envs}
-    </div>
+    </div>,
     <div className="column">
-      <p> {label("Heap-allocated Values")} </p>
+      <h1> {label("Heap-allocated Values")} </h1>
       {heap}
-    </div>
-  </div>
+    </div>,
+  ])
 }
 
 let render: Smol.state => React.element = s => {

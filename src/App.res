@@ -80,7 +80,7 @@ let make = () => {
   | Running({prevs:_, now:_, nexts: list{}, latestState: Continuing(_)}) => true
   | Running({prevs:_, now:_, nexts: list{_e, ..._nexts}, latestState:_}) => true
   }
-  <div id="main">
+  <main>
     <div id="control-panel">
       <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
       <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
@@ -88,15 +88,15 @@ let make = () => {
       <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
     </div>
     <div id="row">
-      <div id="program-source">
-        <CodeEditor program setProgram editable={state == Editing} />
-      </div>
-      <div id="stacker">
+      <section id="program-source">
+        <CodeEditor program setProgram />
+      </section>
+      <section id="stacker">
         {switch state {
         | Editing => React.string("Click run to start tracing")
         | Running(s) => s.now
         }}
-      </div>
+      </section>
     </div>
-  </div>
+  </main>
 }

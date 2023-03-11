@@ -1,9 +1,9 @@
-#smol-state {
+#stacker {
     display: flex;
     flex-direction: row;
 }
 
-#main {
+main {
     display: flex;
     flex-direction: column;
 }
