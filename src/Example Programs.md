@@ -25,6 +25,19 @@
 (fact 5)
 ```
 
+## Let over lambda
+
+```smol
+(defvar f
+  (let ([ctr 0])
+    (lambda ()
+      (set! ctr (+ ctr 1))
+      ctr)))
+
+(f)
+(f)
+```
+
 ## The big complicated object example
 
 ```smol

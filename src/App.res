@@ -97,6 +97,7 @@ let make = () => {
   })
   let onRunClick = _evt => {
     setState(_ => loadProgram(program))
+    setNNext(_ => 0)
   }
   let onStopClick = _evt => {
     setState(_ => Editing)
