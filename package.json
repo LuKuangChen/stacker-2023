@@ -7,7 +7,8 @@
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:start": "rescript build -w",
-    "build": "webpack"
+    "wpk:start": "npx webpack build -w",
+    "publicize": "cp -r ./dist ./docs"
   },
   "keywords": [
     "rescript"

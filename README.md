@@ -2,23 +2,28 @@
 
 ## Development
 
-Start the watch-compile
+### For every fresh clone
+
+```
+npm install
+```
+
+This will install dependency packages.
+
+### For every development
 
 ```sh
 npm run res:start
 ```
 
-Build webpack every time you run
+This will start a ReScript program that keeps `.res` programs and `.js` programs in sync.
+
 
 ```sh
-npm run build
+npm run wpk:start
 ```
 
-## Build from the source code
-
-```sh
-npx build
-```
+This will run a Webpack program that keeps `.css`, `.js`, etc. and the final webpage in sync.
 
 ## Naming conventions
 
