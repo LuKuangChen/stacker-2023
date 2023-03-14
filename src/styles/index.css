@@ -83,3 +83,8 @@ code.blank {
     margin-top: 0.5ex;
     margin-bottom: 0.5ex;
 }
+
+.binds {
+    display: inline-flex;
+    flex-direction: column;
+}

@@ -65,7 +65,6 @@ let make = () => {
     | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
     | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
         let latestState = Smol.transition(latestState)
-        setNNext(nNext => (nNext + 1))
         Running({
           prevs: list{now, ...prevs},
           now: Render.render(latestState),
@@ -88,6 +87,7 @@ let make = () => {
       Editing
     } else {
       setProgram(_ => programAtURL)
+      setNNext(_ => nNextAtURL)
       let s = ref(loadProgram(programAtURL))
       for _ in 1 to nNextAtURL {
         s.contents = forward(s.contents)
@@ -110,6 +110,7 @@ let make = () => {
     }
   }
   let onPrevClick = _evt => {
+    setNNext(nNext => nNext - 1)
     setState(state =>
       switch state {
       | Editing => raise(Impossible)
@@ -122,6 +123,7 @@ let make = () => {
     )
   }
   let onNextClick = _evt => {
+    setNNext(nNext => nNext + 1)
     setState(forward)
   }
   let nextable = switch state {
@@ -159,12 +161,10 @@ let make = () => {
       <section id="program-source">
         <CodeEditor program setProgram />
       </section>
-      <section id="stacker">
-        {switch state {
-        | Editing => React.string("Click run to start tracing")
-        | Running(s) => s.now
-        }}
-      </section>
+      {switch state {
+      | Editing => <section id="stacker"> {React.string("Click run to start tracing")} </section>
+      | Running(s) => s.now
+      }}
     </div>
   </main>
 }

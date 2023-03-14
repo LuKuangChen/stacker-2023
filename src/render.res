@@ -241,21 +241,24 @@ let show_envFrm = (frm: environmentFrame) => {
   if Array.length(frm.content) == 0 {
     React.string("(nothing)")
   } else {
-    React.array(
-      Array.map(frm.content, xv => {
-        let (x, v) = xv
-        let ov = v.contents
-        let v = switch ov {
-        | None => "💣"
-        | Some(v) => string_of_value(v)
-        }
-        <div className="bind">
-          {blank(x)}
-          {React.string(" ↦ ")}
-          {blank(v)}
-        </div>
-      }),
-    )
+    <span className="binds">
+      {React.array(
+        Array.mapWithIndex(frm.content, (key, xv) => {
+          let key = Int.toString(key)
+          let (x, v) = xv
+          let ov = v.contents
+          let v = switch ov {
+          | None => "💣"
+          | Some(v) => string_of_value(v)
+          }
+          <span key className="bind">
+            {blank(x)}
+            {React.string(" ↦ ")}
+            {blank(v)}
+          </span>
+        }),
+      )}
+    </span>
   }
 }
 
@@ -266,18 +269,20 @@ let show_env = (env: environment) => {
   }
 }
 
-let show_one_env = (env: environment): React.element => {
+let show_one_env = (key: int, env: environment): React.element => {
   switch env {
   | list{} => raise(Impossible("An environment must have at least one frame."))
   | list{frm, ...rest} => {
       let {id, content: _} = frm
-      <div className="env-frame box">
+      <div key={Int.toString(key)} className="env-frame box">
         <p>
           {label("@ ")}
           {blank(id)}
         </p>
-        <p> {label("binds")} </p>
-        {show_envFrm(frm)}
+        <p>
+          {label("binds ")}
+          {show_envFrm(frm)}
+        </p>
         <p>
           {label("rest @ ")}
           {show_env(rest)}
@@ -288,17 +293,18 @@ let show_one_env = (env: environment): React.element => {
 }
 
 let show_all_envs = () => {
-  React.array(all_envs.contents->reverse->map(show_one_env)->List.toArray)
+  React.array(all_envs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)
 }
 
 exception Impossible
-let show_one_hav = (val: value): React.element => {
+let show_one_hav = (key: int, val: value): React.element => {
+  let key = Int.toString(key)
   switch val {
   | Fun(Udf(id, name, xs, body, env)) => {
       let id = id->Int.toString
       let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
       let id = id ++ name
-      <div className="fun box">
+      <div key className="fun box">
         <p>
           {label("@ ")}
           {blank(id)}
@@ -316,7 +322,7 @@ let show_one_hav = (val: value): React.element => {
 
   | Vec(id, vs) => {
       let id = id->Int.toString
-      <div className="vec box">
+      <div key className="vec box">
         <p>
           {label("@ ")}
           {blank(id)}
@@ -327,8 +333,8 @@ let show_one_hav = (val: value): React.element => {
             vs
             ->Array.map(string_of_value)
             ->Array.map(blank)
-            ->Array.map(e =>
-              <span>
+            ->Array.mapWithIndex((i, e) =>
+              <span key={Int.toString(i)}>
                 {React.string(" ")}
                 {e}
               </span>
@@ -343,7 +349,7 @@ let show_one_hav = (val: value): React.element => {
 }
 
 let show_all_havs = () => {
-  React.array(all_havs.contents->reverse->map(show_one_hav)->List.toArray)
+  React.array(all_havs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)
 }
 
 let string_of_error = err => {
@@ -360,9 +366,10 @@ let string_of_error = err => {
   }
 }
 
-let show_stkFrm = (frm: stackFrame) => {
+let show_stkFrm = (key: int, frm: stackFrame) => {
+  let key = Int.toString(key)
   let (ctx, env) = frm
-  <div className="stack-frame box">
+  <div key className="stack-frame box">
     {label("Waiting for a value")}
     <p>
       {label("in context ")}
@@ -384,22 +391,22 @@ let show_stack = (frms: list<React.element>) => {
 }
 
 let show_state = (stack, now, envs, heap) => {
-  React.array([
+  <section id="stacker">
     <div id="stack-and-now" className="column">
       <h1> {label("Stack Frames & The Program Counter")} </h1>
       <div> {stack} </div>
       <hr />
       <div className="now"> {now} </div>
-    </div>,
+    </div>
     <div className="column">
       <h1> {label("Environments")} </h1>
       {envs}
-    </div>,
+    </div>
     <div className="column">
       <h1> {label("Heap-allocated Values")} </h1>
       {heap}
-    </div>,
-  ])
+    </div>
+  </section>
 }
 
 let render: Smol.state => React.element = s => {
@@ -424,7 +431,7 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(App(f, vs, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->map(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
         <div className="box calling">
           <p>
@@ -445,7 +452,7 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(Setting(x, v, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->map(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
         <div className="box replacing">
           <p>
@@ -468,7 +475,7 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(VecSetting((id, _vs), i, v_val, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->map(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
         <div className="box replacing">
           <p>
@@ -492,7 +499,7 @@ let render: Smol.state => React.element = s => {
     }
 
   | Continuing(Returning(v, stk)) => {
-      let stk = show_stack(stk->map(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
         <div className="box returning">
           <p>
