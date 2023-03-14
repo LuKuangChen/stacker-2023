@@ -1,8 +1,9 @@
 open Belt
 
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
+@module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
-@module("./url_parameters") external shareLink: (string, string) => unit = "shareLink"
+@module("./url_parameters") external shareLink: (string, int, string) => unit = "shareLink"
 
 type running_state = {
   prevs: list<React.element>,
@@ -12,18 +13,18 @@ type running_state = {
 }
 
 let pool_of_randomSeed = [
-  Js.Math._PI -> Float.toString,
-  Js.Math._E -> Float.toString,
+  Js.Math._PI->Float.toString,
+  Js.Math._E->Float.toString,
   "smol",
   "defvar",
   "deffun",
   "cond",
   "lambda",
-  "2023"
+  "2023",
 ]
 let new_randomSeed = () => {
   let index = Js.Math.random_int(0, 1 + Array.length(pool_of_randomSeed))
-  pool_of_randomSeed -> Array.get(index) -> Option.getWithDefault(Js.Math.random() -> Float.toString)
+  pool_of_randomSeed->Array.get(index)->Option.getWithDefault(Js.Math.random()->Float.toString)
 }
 
 type state =
@@ -37,6 +38,7 @@ type randomSeedConfig = {isSet: bool, randomSeed: string}
 @react.component
 let make = () => {
   let (program, setProgram) = React.useState(_ => "")
+  let (nNext, setNNext) = React.useState(_ => 0)
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
     Js.log2("randomSeedAtURL", randomSeedAtURL)
     if randomSeedAtURL == "" {
@@ -57,12 +59,40 @@ let make = () => {
       latestState: s,
     })
   }
+  let forward = s => {
+    switch s {
+    | Editing => raise(Impossible)
+    | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
+    | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
+        let latestState = Smol.transition(latestState)
+        setNNext(nNext => (nNext + 1))
+        Running({
+          prevs: list{now, ...prevs},
+          now: Render.render(latestState),
+          nexts: list{},
+          latestState,
+        })
+      }
+
+    | Running({prevs, now, nexts: list{e, ...nexts}, latestState}) =>
+      Running({
+        prevs: list{now, ...prevs},
+        now: e,
+        nexts,
+        latestState,
+      })
+    }
+  }
   let (state, setState) = React.useState(_ => {
     if programAtURL == "" {
       Editing
     } else {
       setProgram(_ => programAtURL)
-      loadProgram(programAtURL)
+      let s = ref(loadProgram(programAtURL))
+      for _ in 1 to nNextAtURL {
+        s.contents = forward(s.contents)
+      }
+      s.contents
     }
   })
   let onRunClick = _evt => {
@@ -92,29 +122,7 @@ let make = () => {
     )
   }
   let onNextClick = _evt => {
-    setState(s => {
-      switch s {
-      | Editing => raise(Impossible)
-      | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
-      | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
-          let latestState = Smol.transition(latestState)
-          Running({
-            prevs: list{now, ...prevs},
-            now: Render.render(latestState),
-            nexts: list{},
-            latestState,
-          })
-        }
-
-      | Running({prevs, now, nexts: list{e, ...nexts}, latestState}) =>
-        Running({
-          prevs: list{now, ...prevs},
-          now: e,
-          nexts,
-          latestState,
-        })
-      }
-    })
+    setState(forward)
   }
   let nextable = switch state {
   | Editing => false
@@ -123,7 +131,7 @@ let make = () => {
   | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   let onShare = _evt => {
-    shareLink(randomSeed.randomSeed, program)
+    shareLink(randomSeed.randomSeed, nNext, program)
   }
   <main>
     <div id="control-panel">
@@ -145,7 +153,7 @@ let make = () => {
       </label>
       <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
       <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
-      <button onClick=onShare>{ React.string(`Create a sharable link`) }</button>
+      <button onClick=onShare> {React.string(`Create a sharable link`)} </button>
     </div>
     <div id="row">
       <section id="program-source">
