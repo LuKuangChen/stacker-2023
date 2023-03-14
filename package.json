@@ -8,7 +8,8 @@
     "res:clean": "rescript clean",
     "res:start": "rescript build -w",
     "wpk:start": "npx webpack build -w",
-    "publicize": "rm -rf ./docs && cp -r ./dist ./docs"
+    "publicize": "rm -rf ./docs && cp -r ./dist ./docs",
+    "localhost": "python -m http.server --directory dist"
   },
   "keywords": [
     "rescript"

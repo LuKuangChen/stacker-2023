@@ -2,6 +2,7 @@ open Belt
 
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
+@module("./url_parameters") external shareLink: (string, string) => unit = "shareLink"
 
 type running_state = {
   prevs: list<React.element>,
@@ -10,26 +11,44 @@ type running_state = {
   latestState: Smol.state,
 }
 
+let pool_of_randomSeed = [
+  Js.Math._PI -> Float.toString,
+  Js.Math._E -> Float.toString,
+  "smol",
+  "defvar",
+  "deffun",
+  "cond",
+  "lambda",
+  "2023"
+]
+let new_randomSeed = () => {
+  let index = Js.Math.random_int(0, 1 + Array.length(pool_of_randomSeed))
+  pool_of_randomSeed -> Array.get(index) -> Option.getWithDefault(Js.Math.random() -> Float.toString)
+}
+
 type state =
   | Editing
   | Running(running_state)
 
 exception Impossible
 
+type randomSeedConfig = {isSet: bool, randomSeed: string}
+
 @react.component
 let make = () => {
   let (program, setProgram) = React.useState(_ => "")
-  let (randomSeed, setRandomSeed) = React.useState(_ => {
-    if (randomSeedAtURL == "") {
-      None
+  let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
+    Js.log2("randomSeedAtURL", randomSeedAtURL)
+    if randomSeedAtURL == "" {
+      {isSet: false, randomSeed: new_randomSeed()}
     } else {
-      Some(randomSeedAtURL)
+      {isSet: true, randomSeed: randomSeedAtURL}
     }
   })
-  let loadProgram = (program) => {
+  let loadProgram = program => {
     let s: Smol.state = Smol.load(
       program->S_expr.stringToSource->S_expr.parse_many->Parse_smol.terms_of_sexprs,
-      randomSeed -> Option.getWithDefault(Js.Math.random() -> Float.toString)
+      randomSeed.randomSeed,
     )
     Running({
       prevs: list{},
@@ -39,7 +58,7 @@ let make = () => {
     })
   }
   let (state, setState) = React.useState(_ => {
-    if (programAtURL == "") {
+    if programAtURL == "" {
       Editing
     } else {
       setProgram(_ => programAtURL)
@@ -103,23 +122,30 @@ let make = () => {
   | Running({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
   | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
+  let onShare = _evt => {
+    shareLink(randomSeed.randomSeed, program)
+  }
   <main>
     <div id="control-panel">
       <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
       <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
       <label>
         {React.string("Random Seed =")}
-        <input
-          type_="text"
-          value={randomSeed->Option.getWithDefault("")}
-          onChange={evt => {
+        {
+          let onChange = evt => {
             let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-            setRandomSeed(_ => Some(newValue))
-          }}
-        />
+            setRandomSeed(_ => {isSet: true, randomSeed: newValue})
+          }
+          if randomSeed.isSet {
+            <input type_="text" value={randomSeed.randomSeed} onChange />
+          } else {
+            <input type_="text" placeholder={randomSeed.randomSeed} onChange />
+          }
+        }
       </label>
       <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
       <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
+      <button onClick=onShare>{ React.string(`Create a sharable link`) }</button>
     </div>
     <div id="row">
       <section id="program-source">
