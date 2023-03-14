@@ -1,5 +1,8 @@
 open Belt
 
+@module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
+@module("./url_parameters") external programAtURL: string = "programAtURL"
+
 type running_state = {
   prevs: list<React.element>,
   now: React.element,
@@ -16,19 +19,35 @@ exception Impossible
 @react.component
 let make = () => {
   let (program, setProgram) = React.useState(_ => "")
-  let (randomSeed, setRandomSeed) = React.useState(_ => None)
-  let (state, setState) = React.useState(_ => Editing)
-  let onRunClick = _evt => {
+  let (randomSeed, setRandomSeed) = React.useState(_ => {
+    if (randomSeedAtURL == "") {
+      None
+    } else {
+      Some(randomSeedAtURL)
+    }
+  })
+  let loadProgram = (program) => {
     let s: Smol.state = Smol.load(
       program->S_expr.stringToSource->S_expr.parse_many->Parse_smol.terms_of_sexprs,
       randomSeed -> Option.getWithDefault(Js.Math.random() -> Float.toString)
     )
-    setState(_ => Running({
+    Running({
       prevs: list{},
       nexts: list{},
       now: Render.render(s),
       latestState: s,
-    }))
+    })
+  }
+  let (state, setState) = React.useState(_ => {
+    if (programAtURL == "") {
+      Editing
+    } else {
+      setProgram(_ => programAtURL)
+      loadProgram(programAtURL)
+    }
+  })
+  let onRunClick = _evt => {
+    setState(_ => loadProgram(program))
   }
   let onStopClick = _evt => {
     setState(_ => Editing)
