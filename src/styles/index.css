@@ -1,26 +1,36 @@
-menu#control-panel {
-    display: flex;
-    flex-direction: row;
-    padding: 0;
+body {
     margin: 0;
-}
-menu#control-panel > li {
-    display: block;
     padding: 0;
-    margin: 0;
-}
-menu#control-panel > li:not(:first-child) {
-    margin-left: 2ex;
-}
-
-#stacker {
-    display: flex;
-    flex-direction: row;
 }
 
 main {
     display: flex;
+    flex-direction: row;
+}
+
+menu {
+    display: flex;
+    flex-direction: row;
+    padding: 0;
+    margin: 0;
+}
+menu > li {
+    display: block;
+    padding: 0;
+    margin: 0;
+}
+menu > li:not(:first-child) {
+    margin-left: 1ex;
+}
+
+section#stacker {
+    display: flex;
     flex-direction: column;
+}
+
+section#stacker > article#stacker-configuration {
+    display: flex;
+    flex-direction: row;
 }
 
 #row {

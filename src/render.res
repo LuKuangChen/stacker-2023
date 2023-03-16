@@ -398,22 +398,22 @@ let show_stack = (frms: list<React.element>) => {
 }
 
 let show_state = (stack, now, envs, heap) => {
-  <section id="stacker">
-    <div id="stack-and-now" className="column">
+  <article id="stacker-configuration">
+    <section id="stack-and-now" className="column">
       <h1> {label("Stack Frames & The Program Counter")} </h1>
       <div> {stack} </div>
       <hr />
       <div className="now"> {now} </div>
-    </div>
-    <div className="column">
+    </section>
+    <section className="column">
       <h1> {label("Environments")} </h1>
       {envs}
-    </div>
-    <div className="column">
+    </section>
+    <section className="column">
       <h1> {label("Heap-allocated Values")} </h1>
       {heap}
-    </div>
-  </section>
+    </section>
+  </article>
 }
 
 let render: Smol.state => React.element = s => {

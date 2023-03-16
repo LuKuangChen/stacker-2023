@@ -6,8 +6,8 @@
     "build-parser": "npx lezer-generator src/codemirror-lang/smol.grammar > src/codemirror-lang/parser.js",
     "res:build": "rescript",
     "res:clean": "rescript clean",
-    "res:start": "rescript build -w",
-    "wpk:start": "npx webpack build -w",
+    "rescript": "rescript build -w",
+    "webpack": "npx webpack build",
     "publicize": "rm -rf ./docs && cp -r ./dist ./docs",
     "localhost": "python -m http.server --directory dist"
   },

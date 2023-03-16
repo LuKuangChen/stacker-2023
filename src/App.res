@@ -137,35 +137,56 @@ let make = () => {
     shareLink(randomSeed.randomSeed, nNext, program)
   }
   <main>
-    <menu id="control-panel">
-      <li><button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button></li>
-      <li><button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button></li>
-      <li><label>
-        {React.string("Random Seed = ")}
-        {
-          let onChange = evt => {
-            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-            setRandomSeed(_ => {isSet: true, randomSeed: newValue})
-          }
-          if randomSeed.isSet {
-            <input type_="text" value={randomSeed.randomSeed} onChange />
-          } else {
-            <input type_="text" placeholder={randomSeed.randomSeed} onChange />
-          }
-        }
-      </label></li>
-      <li><button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button></li>
-      <li><button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button></li>
-      <li><button onClick=onShare> {React.string(`Create a sharable link`)} </button></li>
-    </menu>
-    <div id="row">
-      <section id="program-source">
-        <CodeEditor program setProgram />
-      </section>
+    <section id="program-source">
+      <menu id="control-panel">
+        <li>
+          <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
+        </li>
+        <li>
+          <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
+        </li>
+        <li>
+          <label>
+            {React.string("Random Seed = ")}
+            {
+              let onChange = evt => {
+                let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+                setRandomSeed(_ => {isSet: true, randomSeed: newValue})
+              }
+              if randomSeed.isSet {
+                <input type_="text" value={randomSeed.randomSeed} onChange />
+              } else {
+                <input type_="text" placeholder={randomSeed.randomSeed} onChange />
+              }
+            }
+          </label>
+        </li>
+      </menu>
+      <CodeEditor program setProgram />
+    </section>
+    <section id="stacker">
       {switch state {
-      | Editing => <section id="stacker"> {React.string("Click run to start tracing")} </section>
-      | Running(s) => s.now
+      | Editing => React.string("Click run to start tracing")
+      | Running(s) =>
+        <>
+          <nav id="nav-trace">
+            <menu>
+              <li>
+                <button onClick=onPrevClick disabled={!prevable}>
+                  {React.string("Previous")}
+                </button>
+              </li>
+              <li>
+                <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
+              </li>
+              <li>
+                <button onClick=onShare> {React.string(`Create a sharable link`)} </button>
+              </li>
+            </menu>
+          </nav>
+          {s.now}
+        </>
       }}
-    </div>
+    </section>
   </main>
 }
