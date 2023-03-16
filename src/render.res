@@ -274,26 +274,28 @@ let show_one_env = (key: int, env: environment): React.element => {
   | list{} => raise(Impossible("An environment must have at least one frame."))
   | list{frm, ...rest} => {
       let {id, content: _} = frm
-      <div key={Int.toString(key)} className="env-frame box">
-        <p>
-          {label("@ ")}
-          {blank(id)}
-        </p>
-        <p>
-          {label("binds ")}
-          {show_envFrm(frm)}
-        </p>
-        <p>
-          {label("rest @ ")}
-          {show_env(rest)}
-        </p>
-      </div>
+      <li key={Int.toString(key)} className="env-frame box">
+        {label("@")}
+        {blank(id)}
+        <br />
+        {label("binds ")}
+        {show_envFrm(frm)}
+        <br />
+        {label("extending @")}
+        {show_env(rest)}
+      </li>
     }
   }
 }
 
 let show_all_envs = () => {
-  React.array(all_envs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)
+  if all_envs.contents === list{} {
+    <p> {label("(No environments)")} </p>
+  } else {
+    <ol className="box-list">
+      {React.array(all_envs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)}
+    </ol>
+  }
 }
 
 exception Impossible
@@ -304,51 +306,47 @@ let show_one_hav = (key: int, val: value): React.element => {
       let id = id->Int.toString
       let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
       let id = id ++ name
-      <div key className="fun box">
-        <p>
-          {label("@ ")}
-          {blank(id)}
-        </p>
-        <p>
-          {label("environment @ ")}
-          {show_env(env)}
-        </p>
+      <li key className="fun box">
+        {label("@")}
+        {blank(id)}
+        <br />
+        {label("with environment @")}
+        {show_env(env)}
+        <br />
         <details>
           <summary>
-            {React.string(`From line ${(ann.begin.ln + 1)->Int.toString}`)}
-            <small>{React.string(`:${(ann.begin.ch + 1)->Int.toString}`)}</small>
-            {React.string(` to line ${(ann.end.ln + 1)->Int.toString}`)}
-            <small>{React.string(`:${(ann.end.ch + 1)->Int.toString}`)}</small>
+            {React.string(`(line ${(ann.begin.ln + 1)->Int.toString}`)}
+            <small> {React.string(`:${(ann.begin.ch + 1)->Int.toString}`)} </small>
+            {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
+            <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
+            {label(")")}
           </summary>
           <p>
             {blank(string_of_expr_lam(xs->List.fromArray->map(unann), string_of_block(body)))}
           </p>
         </details>
-      </div>
+      </li>
     }
 
   | Vec(id, vs) => {
       let id = id->Int.toString
-      <div key className="vec box">
-        <p>
-          {label("@ ")}
-          {blank(id)}
-        </p>
-        <p>
-          {label("vec")}
-          {React.array(
-            vs
-            ->Array.map(string_of_value)
-            ->Array.map(blank)
-            ->Array.mapWithIndex((i, e) =>
-              <span key={Int.toString(i)}>
-                {React.string(" ")}
-                {e}
-              </span>
-            ),
-          )}
-        </p>
-      </div>
+      <li key className="vec box">
+        {label("@")}
+        {blank(id)}
+        <br />
+        {label("with contents ")}
+        {React.array(
+          vs
+          ->Array.map(string_of_value)
+          ->Array.map(blank)
+          ->Array.mapWithIndex((i, e) =>
+            <span key={Int.toString(i)}>
+              {React.string(" ")}
+              {e}
+            </span>
+          ),
+        )}
+      </li>
     }
 
   | _ => raise(Impossible)
@@ -356,7 +354,13 @@ let show_one_hav = (key: int, val: value): React.element => {
 }
 
 let show_all_havs = () => {
-  React.array(all_havs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)
+  if all_havs.contents === list{} {
+    <p> {label("(No heap-allocated values)")} </p>
+  } else {
+  <ol className="box-list">
+    {React.array(all_havs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)}
+  </ol>
+  }
 }
 
 let string_of_error = err => {
@@ -376,40 +380,38 @@ let string_of_error = err => {
 let show_stkFrm = (key: int, frm: stackFrame) => {
   let key = Int.toString(key)
   let (ctx, env) = frm
-  <div key className="stack-frame box">
+  <li key className="stack-frame box">
     {label("Waiting for a value")}
-    <p>
-      {label("in context ")}
-      {show_ctx(ctx)}
-    </p>
-    <p>
-      {label("in environment @ ")}
-      {show_env(env)}
-    </p>
-  </div>
+    <br />
+    {label("in context ")}
+    {show_ctx(ctx)}
+    <br />
+    {label("in environment @")}
+    {show_env(env)}
+  </li>
 }
 
 let show_stack = (frms: list<React.element>) => {
   if frms == list{} {
-    React.string("(No stack frames)")
+    <p> {React.string("(No stack frames)")} </p>
   } else {
-    <div> {React.array(frms->reverse->List.toArray)} </div>
+    <ol className="box-list"> {React.array(frms->reverse->List.toArray)} </ol>
   }
 }
 
 let show_state = (stack, now, envs, heap) => {
   <article id="stacker-configuration">
-    <section id="stack-and-now" className="column">
+    <section id="stack-and-now">
       <h1> {label("Stack Frames & The Program Counter")} </h1>
-      <div> {stack} </div>
+      {stack}
       <hr />
-      <div className="now"> {now} </div>
+      {now}
     </section>
-    <section className="column">
+    <section id="environments">
       <h1> {label("Environments")} </h1>
       {envs}
     </section>
-    <section className="column">
+    <section id="heap">
       <h1> {label("Heap-allocated Values")} </h1>
       {heap}
     </section>
@@ -420,7 +422,7 @@ let render: Smol.state => React.element = s => {
   switch s {
   | Terminated(Err(err)) => {
       let now =
-        <div className="box errored">
+        <div className="now box errored">
           <p> {label("Errored")} </p>
           {blank(string_of_error(err))}
         </div>
@@ -429,7 +431,7 @@ let render: Smol.state => React.element = s => {
 
   | Terminated(Tm(vs)) => {
       let now =
-        <div className="box terminated">
+        <div className="now box terminated">
           <p> {label("Terminated")} </p>
           {blank(String.concat("\n", vs->reverse->map(string_of_value)))}
         </div>
@@ -440,20 +442,16 @@ let render: Smol.state => React.element = s => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
-        <div className="box calling">
-          <p>
-            {label("Calling ")}
-            {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)}))}
-          </p>
-          <p>
-            {label("in context ")}
-            {show_ctx(ctx)}
-          </p>
-          <p>
-            {label("in environment @ ")}
-            {show_env(env)}
-          </p>
-        </div>
+        <p className="now box calling">
+          {label("Calling ")}
+          {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)}))}
+          <br />
+          {label("in context ")}
+          {show_ctx(ctx)}
+          <br />
+          {label("in environment @")}
+          {show_env(env)}
+        </p>
       show_state(stk, now, show_all_envs(), show_all_havs())
     }
 
@@ -461,7 +459,7 @@ let render: Smol.state => React.element = s => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
-        <div className="box replacing">
+        <div className="now box replacing">
           <p>
             {label("Replacing the value of ")}
             {blank(unann(x))}
@@ -473,7 +471,7 @@ let render: Smol.state => React.element = s => {
             {show_ctx(ctx)}
           </p>
           <p>
-            {label("in environment @ ")}
+            {label("in environment @")}
             {show_env(env)}
           </p>
         </div>
@@ -484,7 +482,7 @@ let render: Smol.state => React.element = s => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
-        <div className="box replacing">
+        <div className="now box replacing">
           <p>
             {label("Replacing the ")}
             {blank(i->Int.toString)}
@@ -498,7 +496,7 @@ let render: Smol.state => React.element = s => {
             {show_ctx(ctx)}
           </p>
           <p>
-            {label("in environment @ ")}
+            {label("in environment @")}
             {show_env(env)}
           </p>
         </div>
@@ -508,7 +506,7 @@ let render: Smol.state => React.element = s => {
   | Continuing(Returning(v, stk)) => {
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
-        <div className="box returning">
+        <div className="now box returning">
           <p>
             {label("Returning ")}
             {show_value(v)}

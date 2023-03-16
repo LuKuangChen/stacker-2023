@@ -8,6 +8,19 @@ main {
     flex-direction: row;
 }
 
+main > section:not(:first-child) {
+    border-left: 0.5ex solid gray;
+}
+
+nav {
+    padding-left: 1ex;
+}
+
+section#stacker > article > section {
+    padding-left: 1ex;
+    padding-right: 1ex;
+}
+
 menu {
     display: flex;
     flex-direction: row;
@@ -45,27 +58,27 @@ code.blank {
     background-color: white;
 }
 
-.now .calling {
+.now.calling {
     color: rgb(0, 0, 0);
     background-color: rgb(255, 187, 0);
 }
 
-.now .returning {
+.now.returning {
     color: rgb(255, 255, 255);
     background-color: rgb(0, 0, 200);
 }
 
-.now .replacing {
+.now.replacing {
     color: rgb(255, 255, 255);
     background-color: rgb(0, 0, 200);
 }
 
-.now .terminated {
+.now.terminated {
     color: rgb(255, 255, 255);
     background-color: rgb(0, 0, 0);
 }
 
-.now .errored {
+.now.errored {
     color: rgb(0, 0, 0);
     background-color: rgb(255, 127, 121);
 }
@@ -84,12 +97,6 @@ code.blank {
 .stack-frame {
     color: rgb(0, 0, 0);
     background-color: rgb(255, 187, 0);
-}
-
-.box {
-    padding: 1em;
-    border-radius: 1ex;
-    margin-top: 1ex;
 }
 
 .fun {
@@ -112,4 +119,17 @@ code.blank {
 .binds {
     display: inline-flex;
     flex-direction: column;
+}
+
+ol.box-list {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+}
+ol.box-list > li, .box {
+    display: block;
+    padding: 1em;
+    border-radius: 1ex;
+    margin-top: 1ex;
 }

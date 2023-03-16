@@ -165,27 +165,22 @@ let make = () => {
       <CodeEditor program setProgram />
     </section>
     <section id="stacker">
+      <nav id="nav-trace">
+        <menu>
+          <li>
+            <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
+          </li>
+          <li>
+            <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
+          </li>
+          <li>
+            <button onClick=onShare disabled={state == Editing}> {React.string(`Create a sharable link`)} </button>
+          </li>
+        </menu>
+      </nav>
       {switch state {
-      | Editing => React.string("Click run to start tracing")
-      | Running(s) =>
-        <>
-          <nav id="nav-trace">
-            <menu>
-              <li>
-                <button onClick=onPrevClick disabled={!prevable}>
-                  {React.string("Previous")}
-                </button>
-              </li>
-              <li>
-                <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
-              </li>
-              <li>
-                <button onClick=onShare> {React.string(`Create a sharable link`)} </button>
-              </li>
-            </menu>
-          </nav>
-          {s.now}
-        </>
+      | Editing => <p>{ React.string("Click run to start tracing") }</p>
+      | Running(s) => s.now
       }}
     </section>
   </main>
