@@ -1,3 +1,18 @@
+menu#control-panel {
+    display: flex;
+    flex-direction: row;
+    padding: 0;
+    margin: 0;
+}
+menu#control-panel > li {
+    display: block;
+    padding: 0;
+    margin: 0;
+}
+menu#control-panel > li:not(:first-child) {
+    margin-left: 2ex;
+}
+
 #stacker {
     display: flex;
     flex-direction: row;

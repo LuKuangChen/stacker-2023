@@ -137,11 +137,11 @@ let make = () => {
     shareLink(randomSeed.randomSeed, nNext, program)
   }
   <main>
-    <div id="control-panel">
-      <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
-      <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
-      <label>
-        {React.string("Random Seed =")}
+    <menu id="control-panel">
+      <li><button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button></li>
+      <li><button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button></li>
+      <li><label>
+        {React.string("Random Seed = ")}
         {
           let onChange = evt => {
             let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
@@ -153,11 +153,11 @@ let make = () => {
             <input type_="text" placeholder={randomSeed.randomSeed} onChange />
           }
         }
-      </label>
-      <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
-      <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
-      <button onClick=onShare> {React.string(`Create a sharable link`)} </button>
-    </div>
+      </label></li>
+      <li><button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button></li>
+      <li><button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button></li>
+      <li><button onClick=onShare> {React.string(`Create a sharable link`)} </button></li>
+    </menu>
     <div id="row">
       <section id="program-source">
         <CodeEditor program setProgram />

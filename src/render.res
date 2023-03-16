@@ -173,9 +173,7 @@ and string_of_term = t => {
   }
 }
 
-let label: string => React.element = s => {
-  <span className="label"> {React.string(s)} </span>
-}
+let label = React.string
 
 let show_expr = e => {
   blank(string_of_expr(e))
