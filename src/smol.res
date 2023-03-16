@@ -1,8 +1,7 @@
-// type definition = Defvar(string, expression)
-
+open Utilities
 open Belt
 
-@module("./random") external make_random: (string) => array<() => float> = "make_random"
+@module("./random") external make_random: string => array<unit => float> = "make_random"
 
 let random_int_of_random = (. random) => {
   let f = (start, end) => {
@@ -16,7 +15,7 @@ let random_int_of_random = (. random) => {
 let make_random_int = seed => {
   // If I don't wrap the function in an array, Rescript will automatically collapse
   // the two arrows and eta-expand the first function.
-  let random: () => float = Array.getExn(make_random(seed), 0)
+  let random: unit => float = Array.getExn(make_random(seed), 0)
   random_int_of_random(. random)
 }
 
@@ -30,35 +29,20 @@ type constant =
 type rec expression =
   | Con(constant)
   | Ref(symbol)
-  | Set(symbol, expression)
-  | Lam(list<symbol>, block)
-  | Let(list<(symbol, expression)>, block)
-  | App(expression, list<expression>)
-  | Cnd(list<(expression, block)>, option<block>)
+  | Set(annotated<symbol>, annotated<expression>)
+  | Lam(list<annotated<symbol>>, block)
+  | Let(list<(annotated<symbol>, annotated<expression>)>, block)
+  | App(annotated<expression>, list<annotated<expression>>)
+  | Cnd(list<(annotated<expression>, block)>, option<block>)
   | Bgn(block)
-and block = (list<term>, expression)
+and block = (list<term>, annotated<expression>)
 and definition =
-  | Var(symbol, expression)
-  | Fun(symbol, list<symbol>, block)
+  | Var(annotated<symbol>, annotated<expression>)
+  | Fun(annotated<symbol>, list<annotated<symbol>>, block)
 and term =
-  | Def(definition)
-  | Exp(expression)
+  | Def(annotated<definition>)
+  | Exp(annotated<expression>)
 type program = list<term>
-
-let xsOfBlock = (b: block) => {
-  let (ts, _e) = b
-  open Js.List
-  ts
-  |> map((. trm) =>
-    switch trm {
-    | Def(Var(x, _e)) => list{x}
-    | Def(Fun(x, _ys, _b)) => list{x}
-    | Exp(_e) => list{}
-    }
-  )
-  |> flatten
-  |> toVector
-}
 
 type primitive =
   | Add
@@ -88,7 +72,7 @@ and function =
   // primitives
   | Prm(primitive)
   // User-Defined Functions
-  | Udf(int, ref<option<string>>, array<symbol>, block, environment)
+  | Udf(int, ref<option<string>>, srcrange, array<annotated<symbol>>, block, environment)
 and value =
   // the Unit value
   | Uni
@@ -146,6 +130,24 @@ type runtime_error =
   | UserRaised(string)
 exception RuntimeError(runtime_error)
 
+let xsOfTerms = (ts: list<term>) => {
+  open Js.List
+  ts
+  |> map((. trm) =>
+    switch trm {
+    | Def({ann: _, it: Var(x, _e)}) => list{x}
+    | Def({ann: _, it: Fun(x, _ys, _b)}) => list{x}
+    | Exp(_e) => list{}
+    }
+  )
+  |> flatten
+  |> toVector
+}
+let xsOfBlock = (b: block) => {
+  let (ts, _e) = b
+  xsOfTerms(ts)
+}
+
 let new_hav_id = () => random_int.contents(100, 1000)
 let new_env_id = () => random_int.contents(1000, 10000)
 
@@ -200,28 +202,33 @@ let doRef = (env, x) => {
   | Some(v) => v
   }
 }
-let doSet = (env: environment, x, v) => {
+let doSet = (env: environment, x: annotated<symbol>, v) => {
   switch v {
-  | Fun(Udf(_id, name, _xs, _env, _body)) =>
+  | Fun(Udf(_id, name, _meta, _xs, _env, _body)) =>
     switch name.contents {
-    | None => name := Some(x)
+    | None => name := Some(x.it)
     | _ => ()
     }
 
   | _ => ()
   }
-  lookup(env, x).contents = Some(v)
+  lookup(env, x.it).contents = Some(v)
 }
 
 type contextFrame =
-  | Set1(symbol, unit)
-  | App1(unit, list<expression>)
-  | App2(value, list<value>, unit, list<expression>)
-  | Let1(list<(symbol, value)>, (symbol, unit), list<(symbol, expression)>, block)
-  | Cnd1(unit, block, list<(expression, block)>, option<block>)
-  | BgnDef(symbol, unit, block)
+  | Set1(annotated<symbol>, unit)
+  | App1(unit, list<annotated<expression>>)
+  | App2(value, list<value>, unit, list<annotated<expression>>)
+  | Let1(
+      list<(annotated<symbol>, value)>,
+      (annotated<symbol>, unit),
+      list<(annotated<symbol>, annotated<expression>)>,
+      block,
+    )
+  | Cnd1(unit, block, list<(annotated<expression>, block)>, option<block>)
+  | BgnDef(annotated<symbol>, unit, block)
   | BgnExp(unit, block)
-  | PrgDef(list<value>, symbol, unit, list<term>)
+  | PrgDef(list<value>, annotated<symbol>, unit, list<term>)
   | PrgExp(list<value>, unit, list<term>)
 type context = list<contextFrame>
 
@@ -250,7 +257,7 @@ type terminated_state =
   | Tm(list<value>)
 type continuing_state =
   | App(value, list<value>, commomState)
-  | Setting(symbol, value, commomState)
+  | Setting(annotated<symbol>, value, commomState)
   | VecSetting(vector, int, value, commomState)
   | Returning(value, stack)
 type state =
@@ -463,8 +470,8 @@ and continue = (v: value, stt): state => {
     }
   }
 }
-and doEv = (exp: expression, stt) =>
-  switch exp {
+and doEv = (exp: annotated<expression>, stt) =>
+  switch exp.it {
   | Con(c) =>
     let val = Con(c)
     continue(val, stt)
@@ -476,7 +483,7 @@ and doEv = (exp: expression, stt) =>
     doEv(exp, consCtx(Set1(x, ()), stt))
   | Lam(xs, b) => {
       let id = new_hav_id()
-      let v = Fun(Udf(id, ref(None), xs |> Js.List.toVector, b, stt.env))
+      let v = Fun(Udf(id, ref(None), exp.ann, xs |> Js.List.toVector, b, stt.env))
       all_havs := list{v, ...all_havs.contents}
       continue(v, stt)
     }
@@ -485,7 +492,7 @@ and doEv = (exp: expression, stt) =>
 
   | Bgn(b) => {
       let xs = xsOfBlock(b)
-      let env = extend(stt.env, xs)
+      let env = extend(stt.env, xs->Array.map(unann))
       transitionBgn(b, pushStk(env, stt))
     }
 
@@ -494,12 +501,12 @@ and doEv = (exp: expression, stt) =>
     doEv(exp, consCtx(App1((), es), stt))
   | Cnd(ebs, ob) => transitionCnd(ebs, ob, stt)
   }
-and transitionLet = (xvs, xes, b, stt) => {
+and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>, b, stt) => {
   switch xes {
   | list{} => {
       let xvs = xvs->List.reverse->List.toArray
       let xs = xvs->Array.map(((x, _v)) => x)
-      let env = extend(stt.env, Array.concat(xs, xsOfBlock(b)))
+      let env = extend(stt.env, Array.concat(xs, xsOfBlock(b))->Array.map(unann))
       xvs->Array.forEach(((x, v)) => {
         doSet(env, x, v)
       })
@@ -514,11 +521,11 @@ and transitionBgn = ((ts, e), stt) => {
   | list{} =>
     let exp = e
     doEv(exp, stt)
-  | list{Def(Var(x, e0)), ...ts} =>
+  | list{Def({ann: _, it: Var(x, e0)}), ...ts} =>
     let exp = e0
     doEv(exp, consCtx(BgnDef(x, (), (ts, e)), stt))
-  | list{Def(Fun(f, xs, b)), ...ts} =>
-    let exp = Lam(xs, b)
+  | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
+    let exp = annotate(Lam(xs, b), ann.begin, ann.end)
     doEv(exp, consCtx(BgnDef(f, (), (ts, e)), stt))
   | list{Exp(e0), ...ts} =>
     let exp = e0
@@ -528,11 +535,11 @@ and transitionBgn = ((ts, e), stt) => {
 and transitionPrg = (vs, ts, stt) => {
   switch ts {
   | list{} => Terminated(Tm(vs))
-  | list{Def(Var(x, e0)), ...ts} =>
+  | list{Def({ann: _, it: Var(x, e0)}), ...ts} =>
     let exp = e0
     doEv(exp, consCtx(PrgDef(vs, x, (), ts), stt))
-  | list{Def(Fun(f, xs, b)), ...ts} =>
-    let exp = Lam(xs, b)
+  | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
+    let exp = annotate(Lam(xs, b), ann.begin, ann.end)
     doEv(exp, consCtx(PrgDef(vs, f, (), ts), stt))
   | list{Exp(e0), ...ts} =>
     let exp = e0
@@ -557,9 +564,9 @@ and transitionCnd = (ebs, ob, stt) => {
 and doApp = (v, vs, stt): state => {
   switch asFun(v) {
   | Prm(p) => delta(p, vs, stt)
-  | Udf(_id, _name, xs, b, env) =>
+  | Udf(_id, _name, _ann, xs, b, env) =>
     if Js.Array.length(xs) == Js.List.length(vs) {
-      let env = extend(env, Js.Array.concat(xs, xsOfBlock(b)))
+      let env = extend(env, Js.Array.concat(xs, xsOfBlock(b))->Array.map(unann))
 
       {
         xs |> Js.Array.forEachi((x, i) => {
@@ -573,7 +580,7 @@ and doApp = (v, vs, stt): state => {
     }
   }
 }
-and transitionApp = (f: value, vs: list<value>, es: list<expression>, stt) => {
+and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>, stt) => {
   switch es {
   | list{} => {
       let vs = List.reverse(vs)
@@ -590,7 +597,7 @@ and transitionApp = (f: value, vs: list<value>, es: list<expression>, stt) => {
   }
 }
 and doBlk = (b, stt): state => {
-  transitionBgn(b, pushStk(extend(stt.env, xsOfBlock(b)), stt))
+  transitionBgn(b, pushStk(extend(stt.env, xsOfBlock(b)->Array.map(unann)), stt))
 }
 
 // todo
@@ -601,9 +608,13 @@ let load = (program: program, randomSeed: string) => {
   random_int := make_random_int(randomSeed)
 
   // now let's get started
-  let xs = xsOfBlock((program, Con(Num(42.0))))
+  let xs = xsOfTerms(program)
   try {
-    transitionPrg(list{}, program, {ctx: list{}, env: extend(initialEnv, xs), stk: list{}})
+    transitionPrg(
+      list{},
+      program,
+      {ctx: list{}, env: extend(initialEnv, xs->Array.map(unann)), stk: list{}},
+    )
   } catch {
   | RuntimeError(err) => Terminated(Err(err))
   }

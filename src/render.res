@@ -4,6 +4,7 @@ This file convert smol states to react elements.
 
 */
 
+open Utilities
 open Belt
 open List
 open Smol
@@ -46,7 +47,7 @@ let string_of_prm = (o: primitive) => {
 
 let string_of_function = (f: Smol.function) => {
   switch f {
-  | Udf(id, name, _xs, _body, _env) => {
+  | Udf(id, name, _ann, _xs, _body, _env) => {
       let id = id->Int.toString
       let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
       "@" ++ id ++ name
@@ -78,7 +79,7 @@ let string_of_list = ss => {
 }
 
 let string_of_def_var = (x, e) => {
-  string_of_list(list{"defvar", x, e})
+  string_of_list(list{"defvar", x.it, e})
 }
 
 let indent = (s, i) => {
@@ -125,28 +126,29 @@ let string_of_expr_cnd = (ebs: list<(string, string)>, ob) => {
 
 let string_of_expr_let = (xes, b) => {
   let xes = xes->map(((x, e)) => {
+    let x = unann(x)
     `[${x} ${indent(e, 2 + String.length(x))}]`
   })
   let xes = String.concat("\n", xes)
   `(let ${indent(xes, 5)}\n${indent(b, 2)}`
 }
 
-let rec string_of_expr = (e: expression): string => {
-  switch e {
+let rec string_of_expr = (e: annotated<expression>): string => {
+  switch e.it {
   | Con(c) => string_of_constant(c)
   | Ref(x) => x
-  | Set(x, e) => string_of_expr_set(x, string_of_expr(e))
-  | Lam(xs, b) => string_of_expr_lam(xs, string_of_block(b))
+  | Set(x, e) => string_of_expr_set(x->unann, string_of_expr(e))
+  | Lam(xs, b) => string_of_expr_lam(xs->map(unann), string_of_block(b))
   | App(e, es) => string_of_expr_app(string_of_expr(e), es->map(string_of_expr))
   | Let(xes, b) => string_of_expr_let(xes->map(string_of_xe), string_of_block(b))
   | Cnd(ebs, ob) => string_of_expr_cnd(ebs->map(string_of_eb), string_of_ob(ob))
   | Bgn(b) => string_of_expr_bgn(string_of_block(b))
   }
 }
-and string_of_def = (d: definition): string => {
-  switch d {
+and string_of_def = (d: annotated<definition>): string => {
+  switch d.it {
   | Var(x, e) => string_of_def_var(x, string_of_expr(e))
-  | Fun(f, xs, b) => string_of_def_fun(f, xs, string_of_block(b))
+  | Fun(f, xs, b) => string_of_def_fun(f->unann, xs->map(unann), string_of_block(b))
   }
 }
 and string_of_xe = xe => {
@@ -185,7 +187,7 @@ let show_value = e => {
 
 let shower_of_contextFrame = frm => {
   switch frm {
-  | Set1(x, ()) => xyz => string_of_expr_set(x, xyz)
+  | Set1(x, ()) => xyz => string_of_expr_set(x->unann, xyz)
   | Let1(xvs, (x, ()), xes, b) =>
     xyz => {
       let xvs = xvs->List.map(((x, v)) => (x, string_of_value(v)))
@@ -300,7 +302,7 @@ exception Impossible
 let show_one_hav = (key: int, val: value): React.element => {
   let key = Int.toString(key)
   switch val {
-  | Fun(Udf(id, name, xs, body, env)) => {
+  | Fun(Udf(id, name, ann, xs, body, env)) => {
       let id = id->Int.toString
       let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
       let id = id ++ name
@@ -313,10 +315,17 @@ let show_one_hav = (key: int, val: value): React.element => {
           {label("environment @ ")}
           {show_env(env)}
         </p>
-        <p>
-          {label("Code ")}
-          {show_expr(Lam(xs->List.fromArray, body))}
-        </p>
+        <details>
+          <summary>
+            {React.string(`From line ${(ann.begin.ln + 1)->Int.toString}`)}
+            <small>{React.string(`:${(ann.begin.ch + 1)->Int.toString}`)}</small>
+            {React.string(` to line ${(ann.end.ln + 1)->Int.toString}`)}
+            <small>{React.string(`:${(ann.end.ch + 1)->Int.toString}`)}</small>
+          </summary>
+          <p>
+            {blank(string_of_expr_lam(xs->List.fromArray->map(unann), string_of_block(body)))}
+          </p>
+        </details>
       </div>
     }
 
@@ -457,7 +466,7 @@ let render: Smol.state => React.element = s => {
         <div className="box replacing">
           <p>
             {label("Replacing the value of ")}
-            {blank(x)}
+            {blank(unann(x))}
             {label(" with ")}
             {show_value(v)}
           </p>

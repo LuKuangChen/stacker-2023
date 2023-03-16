@@ -1,7 +1,4 @@
-type srcloc = {ln: int, ch: int}
-
-type annotated<'t> = 't
-// { data: 't, from: srcloc, to: srcloc }
+open Utilities
 
 type atom =
   | Str(string)
@@ -11,10 +8,9 @@ type bracket =
   | Round
   | Square
 
-type rec pre_sexpr =
+type rec sexpr =
   | Atom(atom)
-  | List(bracket, list<sexpr>)
-and sexpr = annotated<pre_sexpr>
+  | List(bracket, list<annotated<sexpr>>)
 
 type source = {srcloc: srcloc, i: int, content: string}
 
@@ -24,13 +20,14 @@ let stringToSource = s => {
 
 let advance = (srcloc, char) => {
   let {ln, ch} = srcloc
-  switch char {
-  | "\n" => {ln: ln + 1, ch: 0}
-  | _ => {ln, ch: ch + 1}
+  if char === "\n" {
+    {ln: ln + 1, ch: 0}
+  } else {
+    {ln, ch: ch + 1}
   }
 }
 
-let case_source = source => {
+let case_source = (source): option<(string, source)> => {
   let {srcloc, i, content} = source
   if i < Js.String.length(content) {
     let ch = Js.String.get(content, i)
@@ -53,9 +50,12 @@ let rec stringOfList = xs => {
   }
 }
 
-let parse_sym = (chr, src: source): (sexpr, source) => {
-  let rec loop = (cs, src) => {
-    let end = () => (Atom(Sym(stringOfList(Belt.List.reverse(cs)))), src)
+let parse_sym = (start, first_chr, src: source): (annotated<sexpr>, source) => {
+  let rec loop = (cs, src: source): (annotated<sexpr>, source) => {
+    let end = () => {
+      let e = Atom(Sym(stringOfList(Belt.List.reverse(cs))))
+      (annotate(e, start, src.srcloc), src)
+    }
     switch case_source(src) {
     | None => end()
     | Some(("(", _src)) => end()
@@ -72,14 +72,18 @@ let parse_sym = (chr, src: source): (sexpr, source) => {
       }
     }
   }
-  loop(list{chr}, src)
+  loop(list{first_chr}, src)
 }
 
-let parse_str = (src: source): (sexpr, source) => {
-  let rec loop = (cs, src) => {
+let parse_str = (start: srcloc, src: source): (annotated<sexpr>, source) => {
+  let rec loop = (cs, src): (annotated<sexpr>, source) => {
     switch case_source(src) {
     | None => raise(WantStringFoundEOF)
-    | Some((`"`, src)) => (Atom(Str(stringOfList(Belt.List.reverse(cs)))), src)
+    | Some((`"`, src)) => {
+        let e = Atom(Str(stringOfList(Belt.List.reverse(cs))))
+        (annotate(e, start, src.srcloc), src)
+      }
+
     | Some((chr, src)) =>
       if chr == "\\" {
         escapting(cs, src)
@@ -88,18 +92,21 @@ let parse_str = (src: source): (sexpr, source) => {
       }
     }
   }
-  and escapting = (cs, src) => {
+  and escapting = (cs, src): (annotated<sexpr>, source) => {
     switch case_source(src) {
     | None => raise(WantStringFoundEOF)
-    | Some((`"`, src)) => loop(list{`"`, ...cs}, src)
-    | Some(("r", src)) => loop(list{"\r", ...cs}, src)
-    | Some(("t", src)) => loop(list{"\t", ...cs}, src)
-    | Some(("n", src)) => loop(list{"\n", ...cs}, src)
     | Some((chr, src)) =>
-      if chr == "\\" {
-        loop(list{"\\", ...cs}, src)
-      } else {
-        raise(WantEscapableCharFound(chr))
+      switch chr {
+      | `"` => loop(list{`"`, ...cs}, src)
+      | "r" => loop(list{"\r", ...cs}, src)
+      | "t" => loop(list{"\t", ...cs}, src)
+      | "n" => loop(list{"\n", ...cs}, src)
+      | chr =>
+        if chr == "\\" {
+          loop(list{"\\", ...cs}, src)
+        } else {
+          raise(WantEscapableCharFound(chr))
+        }
       }
     }
   }
@@ -107,30 +114,32 @@ let parse_str = (src: source): (sexpr, source) => {
 }
 
 exception MismatchedBracket(bracket, bracket)
-let rec parse_one = (src: source): (sexpr, source) => {
+let rec parse_one = (src: source): (annotated<sexpr>, source) => {
+  let start = src.srcloc
   switch case_source(src) {
   | None => raise(WantSExprFoundEOF)
-  | Some(("(", src)) => start_parse_list(Round, src.srcloc, src)
-  | Some(("[", src)) => start_parse_list(Square, src.srcloc, src)
+  | Some(("(", src)) => start_parse_list(Round, start, src)
+  | Some(("[", src)) => start_parse_list(Square, start, src)
   | Some((")", src)) => raise(WantSExprFoundRP(Round, src))
   | Some(("]", src)) => raise(WantSExprFoundRP(Square, src))
-  | Some((`"`, src)) => parse_str(src)
-  | Some((chr, src)) => {
-      // Js.log(`This one character is: "${chr}".`)
-      if Js.Re.test_(%re("/\s+/ig"), chr) {
-        parse_one(src)
-      } else {
-        parse_sym(chr, src)
-      }
+  | Some((`"`, src)) => parse_str(start, src)
+  | Some((chr, src)) =>
+    // Js.log(`This one character is: "${chr}".`)
+    if Js.Re.test_(%re("/\s+/ig"), chr) {
+      parse_one(src)
+    } else {
+      parse_sym(start, chr, src)
     }
   }
 }
-and start_parse_list = (bracket1, _start, src) => {
-  let rec parse_list = (elms, src) => {
+and start_parse_list = (bracket1, start, src): (annotated<sexpr>, source) => {
+  let rec parse_list = (elms, src): (annotated<sexpr>, source) => {
     switch parse_one(src) {
     | (elm, src) => parse_list(list{elm, ...elms}, src)
-    | exception WantSExprFoundRP(bracket2, src) => if bracket1 == bracket2 {
-        (List(bracket1, Belt.List.reverse(elms)), src)
+    | exception WantSExprFoundRP(bracket2, src) =>
+      if bracket1 == bracket2 {
+        let e = List(bracket1, Belt.List.reverse(elms))
+        (annotate(e, start, src.srcloc), src)
       } else {
         raise(MismatchedBracket(bracket1, bracket2))
       }
@@ -149,8 +158,8 @@ let parse_many = (src: source) => {
   loop(list{}, src)
 }
 
-let rec stringOfSexpr = e =>
-  switch e {
+let rec stringOfSexpr = (e: annotated<sexpr>) =>
+  switch e.it {
   | Atom(Sym(s)) => s
   | Atom(Str(s)) => "str:" ++ s
   | List(_b, list{}) => "()"
