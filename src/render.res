@@ -253,7 +253,7 @@ let show_envFrm = (frm: environmentFrame) => {
           }
           <span key className="bind">
             {blank(x)}
-            {React.string(" ↦ ")}
+            <span ariaLabel="to"> {React.string(" ↦ ")} </span>
             {blank(v)}
           </span>
         }),
@@ -265,7 +265,7 @@ let show_envFrm = (frm: environmentFrame) => {
 let show_env = (env: environment) => {
   switch env {
   | list{} => raise(Impossible("An environment must have at least one frame."))
-  | list{frm, ..._rest} => blank(frm.id)
+  | list{frm, ..._rest} => blank(`@${frm.id}`)
   }
 }
 
@@ -275,14 +275,15 @@ let show_one_env = (key: int, env: environment): React.element => {
   | list{frm, ...rest} => {
       let {id, content: _} = frm
       <li key={Int.toString(key)} className="env-frame box">
-        {label("@")}
-        {blank(id)}
-        <br />
-        {label("binds ")}
-        {show_envFrm(frm)}
-        <br />
-        {label("extending @")}
-        {show_env(rest)}
+        <span>
+          {blank(`@${id}`)}
+          <br />
+          {label("binds ")}
+          {show_envFrm(frm)}
+          <br />
+          {label("extending ")}
+          {show_env(rest)}
+        </span>
       </li>
     }
   }
@@ -292,7 +293,7 @@ let show_all_envs = () => {
   if all_envs.contents === list{} {
     <p> {label("(No environments)")} </p>
   } else {
-    <ol className="box-list">
+    <ol className="box-list" ariaLabel="a list of all environments">
       {React.array(all_envs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)}
     </ol>
   }
@@ -307,10 +308,10 @@ let show_one_hav = (key: int, val: value): React.element => {
       let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
       let id = id ++ name
       <li key className="fun box">
-        {label("@")}
-        {blank(id)}
+        {blank(`@${id}`)}
+        {label(", a function")}
         <br />
-        {label("with environment @")}
+        {label("with environment ")}
         {show_env(env)}
         <br />
         <details>
@@ -331,10 +332,10 @@ let show_one_hav = (key: int, val: value): React.element => {
   | Vec(id, vs) => {
       let id = id->Int.toString
       <li key className="vec box">
-        {label("@")}
-        {blank(id)}
+        {blank(`@${id}`)}
+        {label(", a vector")}
         <br />
-        {label("with contents ")}
+        {label("with contents")}
         {React.array(
           vs
           ->Array.map(string_of_value)
@@ -357,9 +358,9 @@ let show_all_havs = () => {
   if all_havs.contents === list{} {
     <p> {label("(No heap-allocated values)")} </p>
   } else {
-  <ol className="box-list">
-    {React.array(all_havs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)}
-  </ol>
+    <ol className="box-list" ariaLabel="a list of all heap-allocated values">
+      {React.array(all_havs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)}
+    </ol>
   }
 }
 
@@ -386,7 +387,7 @@ let show_stkFrm = (key: int, frm: stackFrame) => {
     {label("in context ")}
     {show_ctx(ctx)}
     <br />
-    {label("in environment @")}
+    {label("in environment ")}
     {show_env(env)}
   </li>
 }
@@ -395,12 +396,12 @@ let show_stack = (frms: list<React.element>) => {
   if frms == list{} {
     <p> {React.string("(No stack frames)")} </p>
   } else {
-    <ol className="box-list"> {React.array(frms->reverse->List.toArray)} </ol>
+    <ol className="box-list" ariaLabel="stack frames, with the oldest at the top"> {React.array(frms->reverse->List.toArray)} </ol>
   }
 }
 
 let show_state = (stack, now, envs, heap) => {
-  <article id="stacker-configuration">
+  <article id="stacker-configuration" ariaLabel="the current stacker configuration">
     <section id="stack-and-now">
       <h1> {label("Stack Frames & The Program Counter")} </h1>
       {stack}
@@ -449,7 +450,7 @@ let render: Smol.state => React.element = s => {
           {label("in context ")}
           {show_ctx(ctx)}
           <br />
-          {label("in environment @")}
+          {label("in environment ")}
           {show_env(env)}
         </p>
       show_state(stk, now, show_all_envs(), show_all_havs())
@@ -471,7 +472,7 @@ let render: Smol.state => React.element = s => {
             {show_ctx(ctx)}
           </p>
           <p>
-            {label("in environment @")}
+            {label("in environment ")}
             {show_env(env)}
           </p>
         </div>
@@ -484,8 +485,8 @@ let render: Smol.state => React.element = s => {
       let now =
         <div className="now box replacing">
           <p>
-            {label("Replacing @")}
-            {blank(Int.toString(id))}
+            {label("Replacing ")}
+            {blank(`@${Int.toString(id)}`)}
             {label("’s ")}
             {blank(i->Int.toString)}
             {label("-th element with ")}
@@ -496,7 +497,7 @@ let render: Smol.state => React.element = s => {
             {show_ctx(ctx)}
           </p>
           <p>
-            {label("in environment @")}
+            {label("in environment ")}
             {show_env(env)}
           </p>
         </div>
