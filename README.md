@@ -65,7 +65,7 @@ During the revision of the design, numerous people have contributed feedback, no
   [Yanyan Ren](https://yanyanr.github.io/), and
   [Yanru Liao](https://www.linkedin.com/in/yanru-liao-7780b2243/)
 - Several audiences of [the Stacker talk](https://youtu.be/y42WZS4spfo) in the 12th
-  [RacketCon](https://con.racket-lang.org/):
+  [RacketCon](https://con.racket-lang.org/), notably
   - [Ben Greenman](https://cs.brown.edu/people/bgreenma/)
   - [Jay McCarthy](https://jeapostrophe.github.io/)
   - [Robert Findler](https://users.cs.northwestern.edu/~robby/)
