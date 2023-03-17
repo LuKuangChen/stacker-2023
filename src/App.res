@@ -143,9 +143,9 @@ let make = () => {
         <summary>{ text("We provided some example programs.")}</summary>
         <menu>
           <li><button value="Fibonacci" onClick={(_evt) => setProgram(_ => Programs.program_fib)}> { text("Fibonacci") } </button></li>
-          <li><button value="Counter" onClick={(_evt) => setProgram(_ => Programs.program_ctr)}> { text("Counter") } </button></li>
           <li><button value="Scope" onClick={(_evt) => setProgram(_ => Programs.program_dynscope)}> { text("Scope") } </button></li>
-          <li><button value="Circular vector" onClick={(_evt) => setProgram(_ => Programs.program_circularity)}> { text("Circular vector") } </button></li>
+          <li><button value="Counter" onClick={(_evt) => setProgram(_ => Programs.program_ctr)}> { text("Counter") } </button></li>
+          <li><button value="Aliasing" onClick={(_evt) => setProgram(_ => Programs.program_aliasing)}> { text("Aliasing") } </button></li>
         </menu>
       </details>
       <CodeEditor program setProgram />

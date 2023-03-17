@@ -10,6 +10,11 @@ let program_fib = `(deffun (fib n)
 (fib 2)
 (fib 3)`
 
+let program_aliasing = `(defvar v1 (vec 1 7 3))
+(defvar v2 v1)
+(vec-set! v1 0 42)
+(vec-ref v2 0)`
+
 let program_ctr = `(defvar f
   (let ([ctr 0])
     (lambda ()
