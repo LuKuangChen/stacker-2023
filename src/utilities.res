@@ -5,3 +5,5 @@ let annotate = (it, begin, end) => {
   {it, ann: {begin, end}}
 }
 let unann = (x: annotated<'t>) => x.it
+
+let text = (s) => React.string(s)

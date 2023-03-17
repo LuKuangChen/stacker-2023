@@ -31,6 +31,20 @@ This will run a Webpack program that keeps `.css`, `.js`, etc. and the final web
 - `xyz.res`: a module
 - `webpack.config.js`: the webpack configuration
 
+## Accessibility Consideration
+
+### No ARIA?
+
+https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA
+
+> "No ARIA is better than no ARIA".
+
+### No tooltips?
+
+https://inclusive-components.design/tooltips-toggletips/
+
+> Tooltips are a last resort, where space really is at a premium
+
 ## Contributions
 
 This software application is developed by Kuang-Chen Lu (me) and [Shriram Krishnamurthi](https://cs.brown.edu/~sk/).

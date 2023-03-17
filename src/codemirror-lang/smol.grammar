@@ -3,7 +3,8 @@ expression {
   Identifier |
   String |
   Boolean |
-  Application { "(" expression* ")" }
+  Application { "(" expression* ")" } |
+  Application { "[" expression* "]" }
 }
 @tokens {
   Identifier { $[a-zA-Z_0-9]+ }
@@ -17,6 +18,8 @@ expression {
   space { $[ \t\n\r]+ }
 
   "(" ")"
+
+  "[" "]"
 }
 @skip { space | LineComment }
 @detectDelim

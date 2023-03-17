@@ -1,4 +1,5 @@
 open Belt
+open Utilities
 
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
@@ -138,48 +139,65 @@ let make = () => {
   }
   <main>
     <section id="program-source">
-      <menu id="control-panel">
-        <li>
-          <button onClick=onRunClick disabled={state != Editing}> {React.string("Run")} </button>
-        </li>
-        <li>
-          <button onClick=onStopClick disabled={state == Editing}> {React.string("Stop")} </button>
-        </li>
-        <li>
-          <label>
-            {React.string("Random Seed = ")}
-            {
-              let onChange = evt => {
-                let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-                setRandomSeed(_ => {isSet: true, randomSeed: newValue})
-              }
-              if randomSeed.isSet {
-                <input type_="text" value={randomSeed.randomSeed} onChange />
-              } else {
-                <input type_="text" placeholder={randomSeed.randomSeed} onChange />
-              }
-            }
-          </label>
-        </li>
-      </menu>
+      <details>
+        <summary>{ text("We provided some example programs.")}</summary>
+        <menu>
+          <li><button value="Fibonacci" onClick={(_evt) => setProgram(_ => Programs.program_fib)}> { text("Fibonacci") } </button></li>
+          <li><button value="Counter" onClick={(_evt) => setProgram(_ => Programs.program_ctr)}> { text("Counter") } </button></li>
+          <li><button value="Scope" onClick={(_evt) => setProgram(_ => Programs.program_dynscope)}> { text("Scope") } </button></li>
+          <li><button value="Circular vector" onClick={(_evt) => setProgram(_ => Programs.program_circularity)}> { text("Circular vector") } </button></li>
+        </menu>
+      </details>
       <CodeEditor program setProgram />
+      <label>
+        {React.string("Random Seed = ")}
+        {
+          let onChange = evt => {
+            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+            setRandomSeed(_ => {isSet: true, randomSeed: newValue})
+          }
+          if randomSeed.isSet {
+            <input type_="text" value={randomSeed.randomSeed} onChange />
+          } else {
+            <input type_="text" placeholder={randomSeed.randomSeed} onChange />
+          }
+        }
+      </label>
     </section>
     <section id="stacker">
-      <nav id="nav-trace">
-        <menu>
-          <li>
-            <button onClick=onPrevClick disabled={!prevable}> {React.string("Previous")} </button>
-          </li>
-          <li>
-            <button onClick=onNextClick disabled={!nextable}> {React.string("Next")} </button>
-          </li>
-          <li>
-            <button onClick=onShare disabled={state == Editing}> {React.string(`Create a sharable link`)} </button>
-          </li>
-        </menu>
-      </nav>
+      <menu id="nav-trace">
+        <li>
+          <button onClick=onRunClick disabled={state != Editing}>
+            {React.string("⏵ Run")}
+          </button>
+        </li>
+        <li>
+          <button onClick=onStopClick disabled={state == Editing}>
+            {React.string("⏹ Stop")}
+          </button>
+        </li>
+        <li>
+          <button onClick=onPrevClick disabled={!prevable}> {React.string("⏮ Previous")} </button>
+        </li>
+        <li>
+          <button onClick=onNextClick disabled={!nextable}> {React.string("⏭ Next")} </button>
+        </li>
+        <li>
+          <button onClick=onShare disabled={state == Editing}>
+            {React.string(`🔗 Share This Configuration`)}
+          </button>
+        </li>
+      </menu>
       {switch state {
-      | Editing => <p>{ React.string("Click run to start tracing") }</p>
+      | Editing =>
+        <p>
+          {text("To start tracing, click ")}
+          <button onClick=onRunClick disabled={state != Editing}>
+            {React.string("⏵ Run")}
+          </button>
+          {text(".")}
+        </p>
+
       | Running(s) => s.now
       }}
     </section>

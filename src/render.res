@@ -365,14 +365,14 @@ let show_all_havs = () => {
 
 let string_of_error = err => {
   switch err {
-  | UnboundIdentifier(symbol) => `The variable ${symbol} hasn't be declared.`
-  | UsedBeforeInitialization(symbol) => `The variable ${symbol} hasn't be assigned a value.`
+  | UnboundIdentifier(symbol) => `The variable ${symbol} hasn't been defined.`
+  | UsedBeforeInitialization(symbol) => `The variable ${symbol} hasn't been assigned a value.`
   | ExpectButGiven(string, _value) => `Expecting a ${string}.`
-  | ArityMismatch(_arity, int) => `Expecting a function that accept ${Int.toString(int)} arguments`
+  | ArityMismatch(_arity, int) => `Expecting a function that accept ${Int.toString(int)} arguments.`
   | OutOfBound(length, index) =>
     `Expecting an index less than the length of the vector (${Int.toString(
         length,
-      )}), found ${Int.toString(index)}`
+      )}), found ${Int.toString(index)}.`
   | UserRaised(message) => message
   }
 }
@@ -461,9 +461,9 @@ let render: Smol.state => React.element = s => {
       let now =
         <div className="now box replacing">
           <p>
-            {label("Replacing the value of ")}
+            {label("Replacing ")}
             {blank(unann(x))}
-            {label(" with ")}
+            {label("’s value with ")}
             {show_value(v)}
           </p>
           <p>
@@ -484,11 +484,11 @@ let render: Smol.state => React.element = s => {
       let now =
         <div className="now box replacing">
           <p>
-            {label("Replacing the ")}
+            {label("Replacing @")}
+            {blank(Int.toString(id))}
+            {label("’s ")}
             {blank(i->Int.toString)}
-            {label("-th element of ")}
-            {blank("@" ++ Int.toString(id))}
-            {label(" with ")}
+            {label("-th element with ")}
             {show_value(v_val)}
           </p>
           <p>

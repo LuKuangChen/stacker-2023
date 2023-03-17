@@ -9,7 +9,8 @@ let parserWithMetadata = parser.configure({
       Boolean: t.bool,
       String: t.string,
       LineComment: t.lineComment,
-      "( )": t.paren
+      "( )": t.paren,
+      "[ ]": t.paren,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit

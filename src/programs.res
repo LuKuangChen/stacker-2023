@@ -1,0 +1,30 @@
+let program_fib = `(deffun (fib n)
+  (cond
+    [(<= n 1) 1]
+    [else
+     (+ (fib (- n 1))
+        (fib (- n 2)))]))
+
+(fib 0)
+(fib 1)
+(fib 2)
+(fib 3)`
+
+let program_ctr = `(defvar f
+  (let ([ctr 0])
+    (lambda ()
+      (set! ctr (+ ctr 1))
+      ctr)))
+
+(f)
+(f)`
+
+let program_dynscope = `(defvar x 1)
+(deffun (addx y)
+  (defvar x 2)
+  (+ x y))
+(+ (addx 0) x)`
+
+let program_circularity = `(defvar v (mvec 2 3))
+(vec-set! v 0 v)
+v`
