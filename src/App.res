@@ -4,7 +4,8 @@ open Utilities
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
-@module("./url_parameters") external shareLink: (string, int, string) => unit = "shareLink"
+@module("./url_parameters") external make_url: (string, int, string) => string = "make_url"
+@scope("window") @val external openPopUp: (string) => unit = "openPopUp"
 
 type running_state = {
   prevs: list<React.element>,
@@ -135,7 +136,7 @@ let make = () => {
   | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   let onShare = _evt => {
-    shareLink(randomSeed.randomSeed, nNext, program)
+    openPopUp(make_url(randomSeed.randomSeed, nNext, program))
   }
   let onKeyPress = evt => {
     let key = ReactEvent.Keyboard.key(evt)

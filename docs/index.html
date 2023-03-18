@@ -11,6 +11,34 @@
 
 <body>
     <div id="root"></div>
+    <dialog id="pop-up-for-sharing">
+        <textarea id="sharable-url" cols="50" rows="5"></textarea>
+        <button onclick="copySharableURL()">Copy</button>
+        <button onclick="closeDialog()">Close</button>
+    </dialog>
+    <script>
+        function openPopUp(value) {
+            let elmInput = document.getElementById("sharable-url");
+            let elmDialog = document.getElementById("pop-up-for-sharing");
+            elmInput.innerText = value;
+            elmDialog.showModal();
+        }
+
+        function closeDialog() {
+            let elmDialog = document.getElementById("pop-up-for-sharing");
+            elmDialog.close();
+        }
+
+        function copySharableURL() {
+            // Get the text field
+            var copyText = document.getElementById("sharable-url");
+            // Select the text field
+            copyText.select();
+            copyText.setSelectionRange(0, 99999); // For mobile devices
+            // Copy the text inside the text field
+            navigator.clipboard.writeText(copyText.value);
+        }
+    </script>
     <script src="main.js"></script>
 </body>
 
