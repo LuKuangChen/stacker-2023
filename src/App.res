@@ -137,15 +137,15 @@ let make = () => {
   let onShare = _evt => {
     openPopUp(make_url(randomSeed.randomSeed, nNext, program))
   }
-  let onKeyPress = evt => {
-    let key = ReactEvent.Keyboard.key(evt)
-    Js.log(`Key pressed (${key})`)
-    if key == "j" && prevable {
-      onPrevClick(evt)
-    } else if key == "k" && nextable {
-      onNextClick(evt)
-    }
-  }
+  // let onKeyDown = evt => {
+  //   let key = ReactEvent.Keyboard.key(evt)
+  //   Js.log(`Key pressed (${key})`)
+  //   if key == "j" && prevable {
+  //     onPrevClick(evt)
+  //   } else if key == "k" && nextable {
+  //     onNextClick(evt)
+  //   }
+  // }
   <main>
     <section id="program-source">
       <details>
@@ -194,7 +194,7 @@ let make = () => {
         </label>
       </details>
     </section>
-    <section id="stacker" onKeyPress={onKeyPress}>
+    <section id="stacker">
       <menu id="nav-trace" ariaLabel="toolbar">
         <li>
           <button onClick=onRunClick disabled={state != Editing}>
