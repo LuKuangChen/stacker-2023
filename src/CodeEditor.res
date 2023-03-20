@@ -16,12 +16,15 @@ let make = (~program, ~setProgram) => {
   let onChange = s => {
     setProgram(_ => s)
   }
-  // <div>
   <SMoLCodeMirror
     value=program
     onChange={onChange}
   />
-  // <textarea value=program onChange disabled={!editable} rows=17 cols=30 />
-  // <p> {React.string(output)} </p>
+  // let onChange = evt => {
+  //   let s = ReactEvent.Form.currentTarget(evt)["value"]
+  //   setProgram(_ => s)
+  // }
+  // <div>
+  // <textarea value=program onChange rows=17 cols=30 />
   // </div>
 }

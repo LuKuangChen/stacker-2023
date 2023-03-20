@@ -253,7 +253,8 @@ let show_envFrm = (frm: environmentFrame) => {
           }
           <span key className="bind">
             {blank(x)}
-            <span ariaLabel="to"> {React.string(" ↦ ")} </span>
+            <span ariaHidden={true}> {React.string(" ↦ ")} </span>
+            <span className="sr-only">{React.string("to")}</span>
             {blank(v)}
           </span>
         }),

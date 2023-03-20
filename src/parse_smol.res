@@ -167,6 +167,5 @@ let rec term_of_sexpr = (e : annotated<S_expr.sexpr>) => {
   }
 }
 and terms_of_sexprs = es => {
-  Js.log(es)
   es -> map(term_of_sexpr)
 }

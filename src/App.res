@@ -42,7 +42,6 @@ let make = () => {
   let (program, setProgram) = React.useState(_ => "")
   let (nNext, setNNext) = React.useState(_ => 0)
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
-    Js.log2("randomSeedAtURL", randomSeedAtURL)
     if randomSeedAtURL == "" {
       {isSet: false, randomSeed: new_randomSeed()}
     } else {
@@ -140,6 +139,7 @@ let make = () => {
   }
   let onKeyPress = evt => {
     let key = ReactEvent.Keyboard.key(evt)
+    Js.log(`Key pressed (${key})`)
     if key == "j" && prevable {
       onPrevClick(evt)
     } else if key == "k" && nextable {
@@ -194,7 +194,7 @@ let make = () => {
         </label>
       </details>
     </section>
-    <section id="stacker" onKeyPress>
+    <section id="stacker" onKeyPress={onKeyPress}>
       <menu id="nav-trace" ariaLabel="toolbar">
         <li>
           <button onClick=onRunClick disabled={state != Editing}>
@@ -211,13 +211,13 @@ let make = () => {
         <li>
           <button onClick=onPrevClick disabled={!prevable}>
             <span ariaHidden={true}> {text("⏮ ")} </span>
-            {React.string("Previous")}
+            {React.string("Previous (j)")}
           </button>
         </li>
         <li>
           <button onClick=onNextClick disabled={!nextable}>
             <span ariaHidden={true}> {text("⏭ ")} </span>
-            {React.string("Next")}
+            {React.string("Next (k)")}
           </button>
         </li>
         <li>

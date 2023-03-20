@@ -7,7 +7,8 @@ section#program-source {
     flex-direction: column;
     height: 100%;
 }
-section#program-source > div {
+
+section#program-source>div {
     flex-grow: 1;
     overflow-y: auto;
 }
@@ -22,7 +23,7 @@ main {
     flex-direction: row;
 }
 
-main > section:not(:first-child) {
+main>section:not(:first-child) {
     border-left: 0.5ex solid gray;
 }
 
@@ -35,7 +36,7 @@ section#stacker {
     overflow-y: auto;
 }
 
-section#stacker > article > section {
+section#stacker>article>section {
     padding-left: 1ex;
     padding-right: 1ex;
 }
@@ -46,12 +47,14 @@ menu {
     padding: 0;
     margin: 0;
 }
-menu > li {
+
+menu>li {
     display: block;
     padding: 0;
     margin: 0;
 }
-menu > li:not(:first-child) {
+
+menu>li:not(:first-child) {
     margin-left: 1ex;
 }
 
@@ -61,7 +64,7 @@ section#stacker {
     padding: 1ex;
 }
 
-section#stacker > article#stacker-configuration {
+section#stacker>article#stacker-configuration {
     display: flex;
     flex-direction: row;
 }
@@ -147,9 +150,23 @@ ol.box-list {
     padding: 0;
     margin: 0;
 }
-ol.box-list > li, .box {
+
+ol.box-list>li,
+.box {
     display: block;
     padding: 1em;
     border-radius: 1ex;
     margin-top: 1ex;
+}
+
+/* Screen Reader - ONLY */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
 }
