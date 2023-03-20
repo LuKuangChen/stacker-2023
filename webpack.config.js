@@ -11,7 +11,7 @@ const path = require('path');
 
 module.exports = {
   entry: './src/index.bs.js',
-  mode: 'development',
+  mode: 'production',
   output: {
     filename: 'main.js',
     path: path.resolve(__dirname, 'dist'),
@@ -23,11 +23,11 @@ module.exports = {
         use: ["style-loader", "css-loader"],
       },
     ],
-    plugins: [
-      new webpack.DefinePlugin({
-        "process.env.NODE_ENV": JSON.stringify("production")
-      })
-    ]
+    // plugins: [
+    //   new webpack.DefinePlugin({
+    //     "process.env.NODE_ENV": JSON.stringify("production")
+    //   })
+    // ]
   },
   watch: true,
 };
