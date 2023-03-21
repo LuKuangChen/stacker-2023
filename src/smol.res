@@ -305,12 +305,12 @@ let pushStk = (new_env, {ctx, env, stk}) => {
   // tail-call optimization
   | list{} => {ctx: list{}, env: new_env, stk}
   | _ =>
-    if new_env === env {
-      // no need to push stack if the environment is the same
-      {ctx, env, stk}
-    } else {
+    // if new_env === env {
+    //   // no need to push stack if the environment is the same
+    //   {ctx, env, stk}
+    // } else {
       {ctx: list{}, env: new_env, stk: list{(ctx, env), ...stk}}
-    }
+    // }
   }
 }
 
