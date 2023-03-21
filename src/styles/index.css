@@ -96,6 +96,11 @@ code.blank {
     background-color: rgb(0, 0, 200);
 }
 
+.now.looping {
+    color: rgb(255, 255, 255);
+    background-color: rgb(0, 0, 200);
+}
+
 .now.terminated {
     color: rgb(255, 255, 255);
     background-color: rgb(0, 0, 0);

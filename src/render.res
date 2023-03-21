@@ -13,6 +13,7 @@ let todo = React.string("TODO")
 
 let string_of_constant = c => {
   switch c {
+  | Uni => "#<void>"
   | Num(n) => Float.toString(n)
   | Lgc(l) =>
     if l {
@@ -61,9 +62,8 @@ let string_of_function = (f: Smol.function) => {
 //   "#<vector>"
 // }
 
-let string_of_value = v => {
+let string_of_value = (v: value) => {
   switch v {
-  | Uni => "#<void>"
   | Con(c) => string_of_constant(c)
   | Fun(f) => string_of_function(f)
   | Vec(id, _v) => "@" ++ Int.toString(id) // string_of_vector(v)
@@ -82,9 +82,8 @@ let string_of_def_var = (x, e) => {
   string_of_list(list{"defvar", x.it, e})
 }
 
-let indent = (s, i) => {
-  let pad = Js.String.repeat(i, " ")
-  Js.String.replaceByRe(%re("/\n/g"), "\n" ++ pad, s)
+let string_of_def_for = (x, e_from, e_to, body) => {
+  `(for ${x.it} ${e_from} ${e_to}\n${indent(body, 2)})`
 }
 
 let string_of_def_fun = (f, xs, b) => {
@@ -109,7 +108,11 @@ let string_of_expr_app = (e, es) => {
 }
 
 let string_of_expr_bgn = b => {
-  "(" ++ b ++ ")"
+  "(begin\n  " ++ indent(b, 2) ++ ")"
+}
+
+let string_of_expr_whl = (e, b) => {
+  "(while " ++ e ++ "\n  " ++ indent(b, 2) ++ ")"
 }
 
 let string_of_expr_cnd = (ebs: list<(string, string)>, ob) => {
@@ -130,25 +133,29 @@ let string_of_expr_let = (xes, b) => {
     `[${x} ${indent(e, 2 + String.length(x))}]`
   })
   let xes = String.concat("\n", xes)
-  `(let ${indent(xes, 5)}\n${indent(b, 2)}`
+  `(let ${indent(xes, 5)}\n${indent(b, 2)})`
 }
 
 let rec string_of_expr = (e: annotated<expression>): string => {
   switch e.it {
   | Con(c) => string_of_constant(c)
-  | Ref(x) => x
+  | Prm(p) => string_of_prm(p)
+  | Ref(x) => x.it
   | Set(x, e) => string_of_expr_set(x->unann, string_of_expr(e))
   | Lam(xs, b) => string_of_expr_lam(xs->map(unann), string_of_block(b))
   | App(e, es) => string_of_expr_app(string_of_expr(e), es->map(string_of_expr))
   | Let(xes, b) => string_of_expr_let(xes->map(string_of_xe), string_of_block(b))
   | Cnd(ebs, ob) => string_of_expr_cnd(ebs->map(string_of_eb), string_of_ob(ob))
-  | Bgn(b) => string_of_expr_bgn(string_of_block(b))
+  | Whl(e, b) => string_of_expr_whl(string_of_expr(e), string_of_block(b))
+  // | Bgn(b) => string_of_expr_bgn(string_of_block(b))
   }
 }
 and string_of_def = (d: annotated<definition>): string => {
   switch d.it {
   | Var(x, e) => string_of_def_var(x, string_of_expr(e))
   | Fun(f, xs, b) => string_of_def_fun(f->unann, xs->map(unann), string_of_block(b))
+  | For(x, e_from, e_to, b) =>
+    string_of_def_for(x, string_of_expr(e_from), string_of_expr(e_to), string_of_block(b))
   }
 }
 and string_of_xe = xe => {
@@ -254,7 +261,7 @@ let show_envFrm = (frm: environmentFrame) => {
           <span key className="bind">
             {blank(x)}
             <span ariaHidden={true}> {React.string(" ↦ ")} </span>
-            <span className="sr-only">{React.string("to")}</span>
+            <span className="sr-only"> {React.string("to")} </span>
             {blank(v)}
           </span>
         }),
@@ -397,7 +404,9 @@ let show_stack = (frms: list<React.element>) => {
   if frms == list{} {
     <p> {React.string("(No stack frames)")} </p>
   } else {
-    <ol className="box-list" ariaLabel="stack frames, with the oldest at the top"> {React.array(frms->reverse->List.toArray)} </ol>
+    <ol className="box-list" ariaLabel="stack frames, with the oldest at the top">
+      {React.array(frms->reverse->List.toArray)}
+    </ol>
   }
 }
 
@@ -440,7 +449,7 @@ let render: Smol.state => React.element = s => {
       show_state(show_stack(list{}), now, show_all_envs(), show_all_havs())
     }
 
-  | Continuing(App(f, vs, stt)) => {
+  | Continuing(Applying(f, vs, stt)) => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
@@ -457,15 +466,34 @@ let render: Smol.state => React.element = s => {
       show_state(stk, now, show_all_envs(), show_all_havs())
     }
 
+  | Continuing(Looping(_e, _b, exp, stt)) => {
+      let {ctx, env, stk} = stt
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let now =
+        <div className="now box looping">
+          <p> {label("Met a loop")} </p>
+          {show_expr(exp)}
+          <p>
+            {label("in context ")}
+            {show_ctx(ctx)}
+          </p>
+          <p>
+            {label("in environment ")}
+            {show_env(env)}
+          </p>
+        </div>
+      show_state(stk, now, show_all_envs(), show_all_havs())
+    }
+
   | Continuing(Setting(x, v, stt)) => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))
       let now =
         <div className="now box replacing">
           <p>
-            {label("Replacing ")}
+            {label("Replacing the value of ")}
             {blank(unann(x))}
-            {label("’s value with ")}
+            {label(" with ")}
             {show_value(v)}
           </p>
           <p>

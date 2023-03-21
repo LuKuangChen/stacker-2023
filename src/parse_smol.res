@@ -66,15 +66,15 @@ let as_expr = e => {
   }
 }
 
-let expr_of_atom = a => {
-    switch a {
+let expr_of_atom = (ann, atom) => {
+    switch atom {
     | S_expr.Str(s) => (Con(Str(s)) : expression)
     | S_expr.Sym("#t") => Con(Lgc(true))
     | S_expr.Sym("#f") => Con(Lgc(false))
     | S_expr.Sym(x) =>
         let e: expression = {
             let tryNum = x -> Float.fromString -> Option.map((n) => (Con(Num(n)) : expression))
-            tryNum -> Option.getWithDefault(Ref(x))
+            tryNum -> Option.getWithDefault(Ref({ann, it: x}))
         }
         e
     }
@@ -108,11 +108,31 @@ let rec term_of_sexpr = (e : annotated<S_expr.sexpr>) => {
       Exp({ ann, it: Lam(args, (terms, result))})
     }
 
-  | List(_b, list{{ it: Atom(Sym("begin")), ann: _ }, ...rest}) => {
+  // | List(_b, list{{ it: Atom(Sym("begin")), ann: _ }, ...rest}) => {
+  //     let (terms, result) = as_one_or_more_tail(rest)
+  //     let terms = terms->map(term_of_sexpr)
+  //     let result = result |> term_of_sexpr |> as_expr
+  //     Exp({ ann, it: Bgn(terms, result)})
+  //   }
+
+  | List(_b, list{{ it: Atom(Sym("while")), ann: _ }, ...rest}) => {
+      let (cond, terms, result) = as_two_or_more(rest -> map(term_of_sexpr))
+      let cond = cond -> as_expr
+      let result = result |> as_expr
+      Exp({ ann, it: Whl(cond, (terms, result))})
+    }
+
+  | List(_b, list{{ it: Atom(Sym("for")), ann: _ }, ...rest}) => {
+      let (x, rest) = as_one_or_more(rest)
+      let (e_from, rest) = as_one_or_more(rest)
+      let (e_to, rest) = as_one_or_more(rest)
       let (terms, result) = as_one_or_more_tail(rest)
-      let terms = terms->map(term_of_sexpr)
-      let result = result |> term_of_sexpr |> as_expr
-      Exp({ ann, it: Bgn(terms, result)})
+      let x = x -> as_id
+      let e_from = e_from -> term_of_sexpr -> as_expr
+      let e_to = e_to -> term_of_sexpr -> as_expr
+      let terms = terms -> map(term_of_sexpr)
+      let result = result -> term_of_sexpr -> as_expr
+      Def({ ann, it: For(x, e_from, e_to, (terms, result))})
     }
 
   | List(_b, list{{ it: Atom(Sym("set!")), ann: _ }, ...rest}) => {
@@ -157,7 +177,7 @@ let rec term_of_sexpr = (e : annotated<S_expr.sexpr>) => {
     Exp({ ann, it: Let(xes, (ts, result))})
   }
 
-  | Atom(atom) => Exp({ann, it: expr_of_atom(atom)})
+  | Atom(atom) => Exp({ann, it: expr_of_atom(ann, atom)})
   | List(_b, es) => {
       let (e, es) = as_one_or_more(es)
       let e = e -> term_of_sexpr -> as_expr
