@@ -1,3 +1,13 @@
+kbd::before {
+    content: "(";
+}
+kbd::after {
+    content: ")";
+}
+kbd {
+    margin-left: 1ex;
+}
+
 main {
     height: 100vh;
 }

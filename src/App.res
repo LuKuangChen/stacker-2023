@@ -137,16 +137,16 @@ let make = () => {
   let onShare = _evt => {
     openPopUp(make_url(randomSeed.randomSeed, nNext, program))
   }
-  // let onKeyDown = evt => {
-  //   let key = ReactEvent.Keyboard.key(evt)
-  //   Js.log(`Key pressed (${key})`)
-  //   if key == "j" && prevable {
-  //     onPrevClick(evt)
-  //   } else if key == "k" && nextable {
-  //     onNextClick(evt)
-  //   }
-  // }
-  <main>
+  let onKeyDown = evt => {
+    let key = ReactEvent.Keyboard.key(evt)
+    Js.log(`Key pressed (${key})`)
+    if key == "j" && prevable {
+      onPrevClick(evt)
+    } else if key == "k" && nextable {
+      onNextClick(evt)
+    }
+  }
+  <main onKeyDown>
     <section id="program-source">
       <details>
         <summary> {text("We provided some example programs.")} </summary>
@@ -179,7 +179,7 @@ let make = () => {
       <details>
         <summary> {text("Advanced configurations.")} </summary>
         <label>
-          {React.string("Random Seed = ")}
+          {text("Random Seed = ")}
           {
             let onChange = evt => {
               let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
@@ -205,25 +205,27 @@ let make = () => {
         <li>
           <button onClick=onStopClick disabled={state == Editing}>
             <span ariaHidden={true}> {text("⏹ ")} </span>
-            {React.string("Stop")}
+            {text("Stop")}
           </button>
         </li>
         <li>
           <button onClick=onPrevClick disabled={!prevable}>
             <span ariaHidden={true}> {text("⏮ ")} </span>
-            {React.string("Previous (j)")}
+            {text("Previous")}
+            <kbd>{text("j")}</kbd>
           </button>
         </li>
         <li>
           <button onClick=onNextClick disabled={!nextable}>
             <span ariaHidden={true}> {text("⏭ ")} </span>
-            {React.string("Next (k)")}
+            {text("Next")}
+            <kbd>{text("k")}</kbd>
           </button>
         </li>
         <li>
           <button onClick=onShare disabled={state == Editing}>
             <span ariaHidden={true}> {text("🔗 ")} </span>
-            {React.string("Share This Configuration")}
+            {text("Share This Configuration")}
           </button>
         </li>
       </menu>
@@ -233,7 +235,7 @@ let make = () => {
           {text("To start tracing, click ")}
           <button onClick=onRunClick disabled={state != Editing}>
             <span ariaHidden={true}> {text("⏵ ")} </span>
-            {React.string("Run")}
+            {text("Run")}
           </button>
           {text(".")}
         </p>
