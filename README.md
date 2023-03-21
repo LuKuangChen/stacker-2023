@@ -31,6 +31,13 @@ This will run a Webpack program that keeps `.css`, `.js`, etc. and the final web
 - `xyz.res`: a module
 - `webpack.config.js`: the webpack configuration
 
+## Known Issues
+
+Keyboard shortcut is unstable.
+
+ReScript-React registers tons of unused event handlers to the root element. This might
+raise accessibility problem.
+
 ## Accessibility Consideration
 
 ### No ARIA?
