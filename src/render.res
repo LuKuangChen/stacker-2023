@@ -48,10 +48,14 @@ let string_of_prm = (o: primitive) => {
 
 let string_of_function = (f: Smol.function) => {
   switch f {
-  | Udf(id, name, _ann, _xs, _body, _env) => {
+  | Udf(id, _name, _ann, _xs, _body, _env) => {
       let id = id->Int.toString
-      let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
-      "@" ++ id ++ name
+      // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
+      // I find the suffix makes the configuration very unreadable
+      //   in certain cases, and only helps marginally even in
+      //   the best case.
+      // "@" ++ id ++ name
+      "@" ++ id
     }
 
   | Prm(prm) => string_of_prm(prm)
@@ -311,29 +315,27 @@ exception Impossible
 let show_one_hav = (key: int, val: value): React.element => {
   let key = Int.toString(key)
   switch val {
-  | Fun(Udf(id, name, ann, xs, body, env)) => {
+  | Fun(Udf(id, _name, ann, xs, body, env)) => {
       let id = id->Int.toString
-      let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
-      let id = id ++ name
+      // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
+      // let id = id ++ name
       <li key className="fun box">
         {blank(`@${id}`)}
         {label(", a function")}
         <br />
-        {label("with environment ")}
-        {show_env(env)}
-        <br />
         <details>
           <summary>
-            {React.string(`(line ${(ann.begin.ln + 1)->Int.toString}`)}
+            {React.string(`at line ${(ann.begin.ln + 1)->Int.toString}`)}
             <small> {React.string(`:${(ann.begin.ch + 1)->Int.toString}`)} </small>
             {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
             <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
-            {label(")")}
           </summary>
           <p>
             {blank(string_of_expr_lam(xs->List.fromArray->map(unann), string_of_block(body)))}
           </p>
         </details>
+        {label("with environment ")}
+        {show_env(env)}
       </li>
     }
 
