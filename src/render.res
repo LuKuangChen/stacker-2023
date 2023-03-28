@@ -466,6 +466,25 @@ let render: Smol.state => React.element = s => {
       show_state(stk, now, show_all_envs(), show_all_havs())
     }
 
+
+  | Continuing(Applied(b, stt)) => {
+      let {ctx, env, stk} = stt
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let now =
+        <p className="now box called">
+          {label("Evaluating the function body")}
+          <br />
+          {blank(string_of_block(b))}
+          <br />
+          {label("in context ")}
+          {show_ctx(ctx)}
+          <br />
+          {label("in environment ")}
+          {show_env(env)}
+        </p>
+      show_state(stk, now, show_all_envs(), show_all_havs())
+    }
+
   | Continuing(Looping(_e, _b, exp, stt)) => {
       let {ctx, env, stk} = stt
       let stk = show_stack(stk->mapWithIndex(show_stkFrm))

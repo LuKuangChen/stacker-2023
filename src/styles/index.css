@@ -96,6 +96,11 @@ code.blank {
     background-color: rgb(255, 187, 0);
 }
 
+.now.called {
+    color: rgb(255, 255, 255);
+    background-color: rgb(0, 0, 200);
+}
+
 .now.returning {
     color: rgb(255, 255, 255);
     background-color: rgb(0, 0, 200);

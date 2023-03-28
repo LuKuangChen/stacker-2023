@@ -265,6 +265,7 @@ type terminated_state =
 type continuing_state =
   | Looping(annotated<expression>, block, annotated<expression>, commomState)
   | Applying(value, list<value>, commomState)
+  | Applied(block, commomState)
   | Setting(annotated<symbol>, value, commomState)
   | VecSetting(vector, int, value, commomState)
   | Returning(value, stack)
@@ -633,12 +634,14 @@ and doApp = (v, vs, stt): state => {
           doSet(env, x, Js.List.nth(vs, i) |> Js.Option.getExn)
         })
       }
-
-      transitionBgn(b, pushStk(env, stt))
+      Continuing(Applied(b, pushStk(env, stt)))
     } else {
       raise(RuntimeError(ArityMismatch(Exactly(Js.Array.length(xs)), Js.List.length(vs))))
     }
   }
+}
+and doApped = (b, stt): state => {
+  transitionBgn(b, stt)
 }
 and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>, stt) => {
   switch es {
@@ -688,6 +691,7 @@ let transition = (state: continuing_state): state => {
     | VecSetting(v, i, e, stt) => doVecSet(v, i, e, stt)
     // | Ev(exp, stt) => doEv(exp, stt)
     | Applying(f, vs, stt) => doApp(f, vs, stt)
+    | Applied(b, stt) => doApped(b, stt)
     | Looping(e, v, exp, stt) => doLoop(e, v, exp, stt)
     }
   } catch {
