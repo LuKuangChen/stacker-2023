@@ -9,8 +9,6 @@ open Belt
 open List
 open Smol
 
-let todo = React.string("TODO")
-
 let string_of_constant = c => {
   switch c {
   | Uni => "#<void>"

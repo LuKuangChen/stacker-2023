@@ -171,6 +171,18 @@ let all_envs = ref(list{})
 // hav = Heap-Allocated Values
 let all_havs: ref<list<value>> = ref(list{})
 
+let makeTopLevel = (env, xs): environment => {
+  // Like extend but the id is hard-coded to be top-level
+  let id = "top-level"
+  let frm = {
+    id,
+    content: xs |> Js.Array.map(x => (x, ref(None))),
+  }
+  let env = list{frm, ...env}
+  all_envs := list{env, ...all_envs.contents}
+  env
+}
+
 let extend = (env, xs): environment => {
   if Array.length(xs) == 0 {
     env
@@ -683,7 +695,7 @@ let load = (program: program, randomSeed: string) => {
     transitionPrg(
       list{},
       program,
-      {ctx: list{}, env: extend(initialEnv, xs->Array.map(unann)), stk: list{}},
+      {ctx: list{}, env: makeTopLevel(initialEnv, xs->Array.map(unann)), stk: list{}},
     )
   } catch {
   | RuntimeError(err) => Terminated(Err(err))
