@@ -69,7 +69,7 @@ let string_of_function = (f: Smol.function) => {
 let string_of_value = (v: value) => {
   switch v {
   | Con(c) => string_of_constant(c)
-  | Fun(f) => string_of_function(f)
+  | VFun(f) => string_of_function(f)
   | Vec(id, _v) => "@" ++ Int.toString(id) // string_of_vector(v)
   }
 }
@@ -131,6 +131,10 @@ let string_of_expr_cnd = (ebs: list<(string, string)>, ob) => {
   "(" ++ "cond\n  " ++ indent(ebs, 2) ++ ")"
 }
 
+let string_of_expr_if = (e_cnd: string, e_thn: string, e_els: string) => {
+  `(if ${indent(e_cnd, 4)}\n    ${indent(e_thn, 4)}\n    ${indent(e_els, 4)})`
+}
+
 let string_of_expr_let = (xes, b) => {
   let xes = xes->map(((x, e)) => {
     let x = unann(x)
@@ -142,14 +146,16 @@ let string_of_expr_let = (xes, b) => {
 
 let rec string_of_expr = (e: annotated<expression>): string => {
   switch e.it {
-  | Con(c) => string_of_constant(c)
-  | Prm(p) => string_of_prm(p)
+  | ECon(c) => string_of_constant(c)
+  | EPrm(p) => string_of_prm(p)
   | Ref(x) => x.it
   | Set(x, e) => string_of_expr_set(x->unann, string_of_expr(e))
   | Lam(xs, b) => string_of_expr_lam(xs->map(unann), string_of_block(b))
   | App(e, es) => string_of_expr_app(string_of_expr(e), es->map(string_of_expr))
   | Let(xes, b) => string_of_expr_let(xes->map(string_of_xe), string_of_block(b))
   | Cnd(ebs, ob) => string_of_expr_cnd(ebs->map(string_of_eb), string_of_ob(ob))
+  | If(e_cnd, e_thn, e_els) =>
+    string_of_expr_if(string_of_expr(e_cnd), string_of_expr(e_thn), string_of_expr(e_els))
   | Whl(e, b) => string_of_expr_whl(string_of_expr(e), string_of_block(b))
   // | Bgn(b) => string_of_expr_bgn(string_of_block(b))
   }
@@ -216,6 +222,10 @@ let shower_of_contextFrame = frm => {
       let eb = (xyz, string_of_block(b))
       let ebs = list{eb, ...ebs->map(string_of_eb)}
       string_of_expr_cnd(ebs, string_of_ob(ob))
+    }
+  | If1((), e_thn, e_els) =>
+    xyz => {
+      string_of_expr_if(xyz, string_of_expr(e_thn), string_of_expr(e_els))
     }
   | BgnDef(x, (), b) =>
     xyz => {
@@ -315,7 +325,7 @@ exception Impossible
 let show_one_hav = (key: int, val: value): React.element => {
   let key = Int.toString(key)
   switch val {
-  | Fun(Udf(id, _name, ann, xs, body, env)) => {
+  | VFun(Udf(id, _name, ann, xs, body, env)) => {
       let id = id->Int.toString
       // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
       // let id = id ++ name
@@ -467,7 +477,6 @@ let render: Smol.state => React.element = s => {
         </p>
       show_state(stk, now, show_all_envs(), show_all_havs())
     }
-
 
   | Continuing(Applied(b, stt)) => {
       let {ctx, env, stk} = stt
