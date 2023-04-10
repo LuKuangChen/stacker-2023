@@ -5,7 +5,7 @@ open Utilities
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
 @module("./url_parameters") external make_url: (string, int, string) => string = "make_url"
-@scope("window") @val external openPopUp: (string) => unit = "openPopUp"
+@scope("window") @val external openPopUp: string => unit = "openPopUp"
 
 type running_state = {
   prevs: list<React.element>,
@@ -212,14 +212,14 @@ let make = () => {
           <button onClick=onPrevClick disabled={!prevable}>
             <span ariaHidden={true}> {text("⏮ ")} </span>
             {text("Previous")}
-            <kbd>{text("j")}</kbd>
+            <kbd> {text("j")} </kbd>
           </button>
         </li>
         <li>
           <button onClick=onNextClick disabled={!nextable}>
             <span ariaHidden={true}> {text("⏭ ")} </span>
             {text("Next")}
-            <kbd>{text("k")}</kbd>
+            <kbd> {text("k")} </kbd>
           </button>
         </li>
         <li>
