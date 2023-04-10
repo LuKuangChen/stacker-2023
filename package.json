@@ -7,7 +7,7 @@
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "rescript": "rescript build -w",
-    "webpack": "npx webpack build",
+    "webpack": "NODE_ENV=production && npx webpack build",
     "publicize": "rm -rf ./docs && cp -r ./dist ./docs",
     "localhost": "python -m http.server --directory dist"
   },
