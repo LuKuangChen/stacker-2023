@@ -1,5 +1,5 @@
 {
-  "name": "stacker-on-web",
+  "name": "stacker-2023",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -7,9 +7,9 @@
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "rescript": "rescript build -w",
-    "webpack": "NODE_ENV=production && npx webpack build",
-    "publicize": "rm -rf ./docs && cp -r ./dist ./docs",
-    "localhost": "python -m http.server --directory dist"
+    "webpack": "npx webpack build",
+    "localhost": "python -m http.server --directory dist",
+    "publicize": "rm -rf ./docs && cp -r ./dist ./docs"
   },
   "keywords": [
     "rescript"
@@ -17,10 +17,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@rescript/react": "^0.11.0",
-    "@uiw/react-codemirror": "^4.19.9",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "rescript": "^10.1.2"
   },
   "devDependencies": {

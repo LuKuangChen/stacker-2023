@@ -1,5 +1,5 @@
 {
-  "name": "smol-nm",
+  "name": "stacker-2023",
   "sources": [
     {
       "dir": "src",
@@ -13,6 +13,8 @@
     }
   ],
   "suffix": ".bs.js",
-  "jsx": { "version": 4, "mode": "classic" },
-  "bs-dependencies": ["@rescript/react"]
+  "jsx": {
+    "version": 4,
+    "mode": "classic"
+  }
 }
