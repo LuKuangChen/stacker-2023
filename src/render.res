@@ -4,10 +4,10 @@ This file convert smol states to react elements.
 
 */
 
+open Smol
 open Utilities
 open Belt
 open List
-open Smol
 
 let string_of_constant = c => {
   switch c {
@@ -40,7 +40,7 @@ let string_of_prm = (o: primitive) => {
   | VecSet => "vec-set!"
   | VecLen => "vec-len"
   | Eqv => "eqv?"
-  | Error => "error"
+  | OError => "error"
   }
 }
 
@@ -109,7 +109,8 @@ let string_of_expr_app = (e, es) => {
   string_of_list(list{e, ...es})
 }
 
-let string_of_expr_bgn = b => {
+let string_of_expr_bgn = (es, e) => {
+  let b = String.concat("\n", list{...es, e})
   "(begin\n  " ++ indent(b, 2) ++ ")"
 }
 
@@ -155,7 +156,7 @@ let rec string_of_expr = (e: annotated<expression>): string => {
   | If(e_cnd, e_thn, e_els) =>
     string_of_expr_if(string_of_expr(e_cnd), string_of_expr(e_thn), string_of_expr(e_els))
   | Whl(e, b) => string_of_expr_whl(string_of_expr(e), string_of_block(b))
-  // | Bgn(b) => string_of_expr_bgn(string_of_block(b))
+  | Bgn(es, e) => string_of_expr_bgn(es->map(string_of_expr), string_of_expr(e))
   }
 }
 and string_of_def = (d: annotated<definition>): string => {
@@ -225,12 +226,18 @@ let shower_of_contextFrame = frm => {
     xyz => {
       string_of_expr_if(xyz, string_of_expr(e_thn), string_of_expr(e_els))
     }
-  | BgnDef(x, (), b) =>
+  | Bgn1((), es, e) =>
+    xyz => {
+      let es = list{xyz, ...es->map(string_of_expr)}
+      let e = string_of_expr(e)
+      string_of_expr_bgn(es, e)
+    }
+  | BlkDef(x, (), b) =>
     xyz => {
       let d = string_of_def_var(x, xyz)
       d ++ "\n" ++ string_of_block(b)
     }
-  | BgnExp((), b) =>
+  | BlkExp((), b) =>
     xyz => {
       xyz ++ "\n" ++ string_of_block(b)
     }
@@ -258,7 +265,7 @@ let show_ctx = ctx => {
 
 let show_envFrm = (frm: environmentFrame) => {
   if Array.length(frm.content) == 0 {
-    React.string("(nothing)")
+    React.string("nothing")
   } else {
     <span className="binds">
       {React.array(
@@ -384,8 +391,8 @@ let show_all_havs = () => {
 
 let string_of_error = err => {
   switch err {
-  | UnboundIdentifier(symbol) => `The variable ${symbol} hasn't been defined.`
-  | UsedBeforeInitialization(symbol) => `The variable ${symbol} hasn't been assigned a value.`
+  | UnboundIdentifier(symbol) => `The variable \`${symbol}\` hasn't been defined.`
+  | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
   | ExpectButGiven(string, _value) => `Expecting a ${string}.`
   | ArityMismatch(_arity, int) => `Expecting a function that accept ${Int.toString(int)} arguments.`
   | OutOfBound(length, index) =>

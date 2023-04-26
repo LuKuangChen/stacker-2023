@@ -37,7 +37,8 @@ type primitive =
   | VecSet
   | VecLen
   | Eqv
-  | Error
+  // to avoid the complain that `Error` is shadowing something
+  | OError
 type constant =
   | Uni
   | Num(float)
@@ -54,6 +55,7 @@ type rec expression =
   | Lam(list<annotated<symbol>>, block)
   | Let(list<(annotated<symbol>, annotated<expression>)>, block)
   | App(annotated<expression>, list<annotated<expression>>)
+  | Bgn(list<annotated<expression>>, annotated<expression>)
   | If(annotated<expression>, annotated<expression>, annotated<expression>)
   | Cnd(list<(annotated<expression>, block)>, option<block>)
   | Whl(annotated<expression>, block)
@@ -106,7 +108,7 @@ let initialEnv: environment = list{
       ("vec-ref", ref(Some((VFun(Prm(VecRef)): value)))),
       ("vec-set!", ref(Some((VFun(Prm(VecSet)): value)))),
       ("vec-len", ref(Some((VFun(Prm(VecLen)): value)))),
-      ("error", ref(Some((VFun(Prm(Error)): value)))),
+      ("error", ref(Some((VFun(Prm(OError)): value)))),
     ],
   },
 }
@@ -248,8 +250,9 @@ type contextFrame =
     )
   | If1(unit, annotated<expression>, annotated<expression>)
   | Cnd1(unit, block, list<(annotated<expression>, block)>, option<block>)
-  | BgnDef(annotated<symbol>, unit, block)
-  | BgnExp(unit, block)
+  | Bgn1(unit, list<annotated<expression>>, annotated<expression>)
+  | BlkDef(annotated<symbol>, unit, block)
+  | BlkExp(unit, block)
   | PrgDef(list<value>, annotated<symbol>, unit, list<term>)
   | PrgExp(list<value>, unit, list<term>)
 type context = list<contextFrame>
@@ -391,7 +394,7 @@ let arityOf = p =>
   | VecSet => Exactly(3)
   | VecLen => Exactly(1)
   | Eqv => AtLeast(2)
-  | Error => Exactly(1)
+  | OError => Exactly(1)
   }
 
 exception Impossible(string)
@@ -442,7 +445,7 @@ and delta = (p, vs) =>
       stt => Continuing(VecSetting(v_vec, v_ind, v_val, stt))
     }
 
-  | (Error, list{v}) => {
+  | (OError, list{v}) => {
       let v = asStr(v)
       _stt => Terminated(Err(UserRaised(v)))
     }
@@ -491,10 +494,11 @@ and continue = (v: value, stt): state => {
       | true => doEv(e_thn, stt)
       | false => doEv(e_els, stt)
       }
-    | BgnDef(x, (), b) =>
+    | Bgn1((), es, e) => transitionBgn(es, e, stt)
+    | BlkDef(x, (), b) =>
       doSet(stt.env, x, v)
-      transitionBgn(b, stt)
-    | BgnExp((), b) => transitionBgn(b, stt)
+      transitionBlock(b, stt)
+    | BlkExp((), b) => transitionBlock(b, stt)
     | PrgDef(vs, x, (), ts) =>
       doSet(stt.env, x, v)
       transitionPrg(vs, ts, stt)
@@ -525,11 +529,7 @@ and doEv = (exp: annotated<expression>, stt) =>
 
   | Let(xes, b) => transitionLet(list{}, xes, b, stt)
 
-  // | Bgn(b) => {
-  //     let xs = xsOfBlock(b)
-  //     let env = extend(stt.env, xs->Array.map(unann))
-  //     transitionBgn(b, pushStk(env, stt))
-  //   }
+  | Bgn(es, e) => transitionBgn(es, e, stt)
 
   | App(e, es) =>
     let exp = e
@@ -546,23 +546,23 @@ and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>,
       xvs->Array.forEach(((x, v)) => {
         doSet(env, x, v)
       })
-      transitionBgn(b, pushStk(env, stt))
+      transitionBlock(b, pushStk(env, stt))
     }
 
   | list{(x, e), ...xes} => doEv(e, consCtx(Let1(xvs, (x, ()), xes, b), stt))
   }
 }
-and transitionBgn = ((ts, e), stt) => {
+and transitionBlock = ((ts, e), stt) => {
   switch ts {
   | list{} =>
     let exp = e
     doEv(exp, stt)
   | list{Def({ann: _, it: Var(x, e0)}), ...ts} =>
     let exp = e0
-    doEv(exp, consCtx(BgnDef(x, (), (ts, e)), stt))
+    doEv(exp, consCtx(BlkDef(x, (), (ts, e)), stt))
   | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
     let exp = annotate(Lam(xs, b), ann.begin, ann.end)
-    doEv(exp, consCtx(BgnDef(f, (), (ts, e)), stt))
+    doEv(exp, consCtx(BlkDef(f, (), (ts, e)), stt))
   | list{Def({ann, it: For(x, e_from, e_to, b)}), ...ts} =>
     /*
     (for (x e_from e_to)
@@ -581,10 +581,10 @@ and transitionBgn = ((ts, e), stt) => {
     let setExp = ann(Set(x, addX1))
     let whlExp = ann(Whl(ltXETo, extend_block(b, setExp)))
     let ts = list{defvarXEFrom, Exp(whlExp), ...ts}
-    transitionBgn((ts, e), stt)
+    transitionBlock((ts, e), stt)
   | list{Exp(e0), ...ts} =>
     let exp = e0
-    doEv(exp, consCtx(BgnExp((), (ts, e)), stt))
+    doEv(exp, consCtx(BlkExp((), (ts, e)), stt))
   }
 }
 and transitionPrg = (vs, ts, stt) => {
@@ -633,6 +633,12 @@ and transitionCnd = (ebs, ob, stt) => {
     }
   }
 }
+and transitionBgn = (es, e, stt) => {
+  switch es {
+  | list{} => doEv(e, stt)
+  | list{e0, ...es} => doEv(e0, consCtx(Bgn1((), es, e), stt))
+  }
+}
 and doLoop = (e, b, exp, stt) => {
   let e1: annotated<expression> = e
   let b1: block = extend_block(b, exp)
@@ -660,7 +666,7 @@ and doApp = (v, vs, stt): state => {
   }
 }
 and doApped = (b, stt): state => {
-  transitionBgn(b, stt)
+  transitionBlock(b, stt)
 }
 and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>, stt) => {
   switch es {
@@ -679,7 +685,7 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
   }
 }
 and doBlk = (b, stt): state => {
-  transitionBgn(b, pushStk(extend(stt.env, xsOfBlock(b)->Array.map(unann)), stt))
+  transitionBlock(b, pushStk(extend(stt.env, xsOfBlock(b)->Array.map(unann)), stt))
 }
 
 // todo

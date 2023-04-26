@@ -114,12 +114,12 @@ let rec term_of_sexpr = (e: annotated<S_expr.sexpr>) => {
       Exp({ann, it: Lam(args, (terms, result))})
     }
 
-  // | List(_b, list{{ it: Atom(Sym("begin")), ann: _ }, ...rest}) => {
-  //     let (terms, result) = as_one_or_more_tail(rest)
-  //     let terms = terms->map(term_of_sexpr)
-  //     let result = result |> term_of_sexpr |> as_expr
-  //     Exp({ ann, it: Bgn(terms, result)})
-  //   }
+  | List(_b, list{{it: Atom(Sym("begin")), ann: _}, ...rest}) => {
+      let (terms, result) = as_one_or_more_tail(rest)
+      let terms = terms->map(term_of_sexpr)->map(as_expr)
+      let result = result->term_of_sexpr->as_expr
+      Exp({ann, it: Bgn(terms, result)})
+    }
 
   | List(_b, list{{it: Atom(Sym("while")), ann: _}, ...rest}) => {
       let (cond, terms, result) = as_two_or_more(rest->map(term_of_sexpr))
