@@ -58,13 +58,12 @@ type rec expression =
   | Bgn(list<annotated<expression>>, annotated<expression>)
   | If(annotated<expression>, annotated<expression>, annotated<expression>)
   | Cnd(list<(annotated<expression>, block)>, option<block>)
-  | Whl(annotated<expression>, block)
-// | Bgn(block)
+// | Whl(annotated<expression>, block)
 and block = (list<term>, annotated<expression>)
 and definition =
   | Var(annotated<symbol>, annotated<expression>)
   | Fun(annotated<symbol>, list<annotated<symbol>>, block)
-  | For(annotated<symbol>, annotated<expression>, annotated<expression>, block)
+// | For(annotated<symbol>, annotated<expression>, annotated<expression>, block)
 and term =
   | Def(annotated<definition>)
   | Exp(annotated<expression>)
@@ -142,7 +141,7 @@ let xsOfTerms = (ts: list<term>) => {
     switch trm {
     | Def({ann: _, it: Var(x, _e)}) => list{x}
     | Def({ann: _, it: Fun(x, _ys, _b)}) => list{x}
-    | Def({ann: _, it: For(x, _e_from, _e_to, _b)}) => list{x}
+    // | Def({ann: _, it: For(x, _e_from, _e_to, _b)}) => list{x}
     | Exp(_e) => list{}
     }
   )
@@ -525,7 +524,7 @@ and doEv = (exp: annotated<expression>, stt) =>
       continue(v, stt)
     }
 
-  | Whl(e, b) => Continuing(Looping(e, b, exp, stt))
+  // | Whl(e, b) => Continuing(Looping(e, b, exp, stt))
 
   | Let(xes, b) => transitionLet(list{}, xes, b, stt)
 
@@ -563,8 +562,8 @@ and transitionBlock = ((ts, e), stt) => {
   | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
     let exp = annotate(Lam(xs, b), ann.begin, ann.end)
     doEv(exp, consCtx(BlkDef(f, (), (ts, e)), stt))
-  | list{Def({ann, it: For(x, e_from, e_to, b)}), ...ts} =>
-    /*
+  // | list{Def({ann, it: For(x, e_from, e_to, b)}), ...ts} =>
+  /*
     (for (x e_from e_to)
       body)
     ===
@@ -573,15 +572,15 @@ and transitionBlock = ((ts, e), stt) => {
       body
       (set! x (+ x 1)))
  */
-    let ann = it => {ann, it}
-    let defvarXEFrom = Def(ann(Var(x, e_from)))
-    let refX = ann(Ref(x))
-    let ltXETo = ann(App(ann(EPrm(Lt)), list{refX, e_to}))
-    let addX1 = ann(App(ann(EPrm(Add)), list{refX, ann(ECon(Num(1.0)))}))
-    let setExp = ann(Set(x, addX1))
-    let whlExp = ann(Whl(ltXETo, extend_block(b, setExp)))
-    let ts = list{defvarXEFrom, Exp(whlExp), ...ts}
-    transitionBlock((ts, e), stt)
+  // let ann = it => {ann, it}
+  // let defvarXEFrom = Def(ann(Var(x, e_from)))
+  // let refX = ann(Ref(x))
+  // let ltXETo = ann(App(ann(EPrm(Lt)), list{refX, e_to}))
+  // let addX1 = ann(App(ann(EPrm(Add)), list{refX, ann(ECon(Num(1.0)))}))
+  // let setExp = ann(Set(x, addX1))
+  // let whlExp = ann(Whl(ltXETo, extend_block(b, setExp)))
+  // let ts = list{defvarXEFrom, Exp(whlExp), ...ts}
+  // transitionBlock((ts, e), stt)
   | list{Exp(e0), ...ts} =>
     let exp = e0
     doEv(exp, consCtx(BlkExp((), (ts, e)), stt))
@@ -596,8 +595,8 @@ and transitionPrg = (vs, ts, stt) => {
   | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
     let exp = annotate(Lam(xs, b), ann.begin, ann.end)
     doEv(exp, consCtx(PrgDef(vs, f, (), ts), stt))
-  | list{Def({ann, it: For(x, e_from, e_to, b)}), ...ts} =>
-    /*
+  // | list{Def({ann, it: For(x, e_from, e_to, b)}), ...ts} =>
+  /*
     (for (x e_from e_to)
       body)
     ===
@@ -606,15 +605,15 @@ and transitionPrg = (vs, ts, stt) => {
       body
       (set! x (+ x 1)))
  */
-    let ann = it => {ann, it}
-    let defvarXEFrom = Def(ann(Var(x, e_from)))
-    let refX = ann(Ref(x))
-    let ltXETo = ann(App(ann(EPrm(Lt)), list{refX, e_to}))
-    let addX1 = ann(App(ann(EPrm(Add)), list{refX, ann(ECon(Num(1.0)))}))
-    let setExp = ann(Set(x, addX1))
-    let whlExp = ann(Whl(ltXETo, extend_block(b, setExp)))
-    let ts = list{defvarXEFrom, Exp(whlExp), ...ts}
-    transitionPrg(vs, ts, stt)
+  // let ann = it => {ann, it}
+  // let defvarXEFrom = Def(ann(Var(x, e_from)))
+  // let refX = ann(Ref(x))
+  // let ltXETo = ann(App(ann(EPrm(Lt)), list{refX, e_to}))
+  // let addX1 = ann(App(ann(EPrm(Add)), list{refX, ann(ECon(Num(1.0)))}))
+  // let setExp = ann(Set(x, addX1))
+  // let whlExp = ann(Whl(ltXETo, extend_block(b, setExp)))
+  // let ts = list{defvarXEFrom, Exp(whlExp), ...ts}
+  // transitionPrg(vs, ts, stt)
   | list{Exp(e0), ...ts} =>
     let exp = e0
     doEv(exp, consCtx(PrgExp(vs, (), ts), stt))

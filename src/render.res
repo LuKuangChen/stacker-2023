@@ -9,6 +9,17 @@ open Utilities
 open Belt
 open List
 
+type syntax_kind =
+  | SMoL
+  | JavaScript
+
+let adjust_syntax = (sk, src) => {
+  switch sk {
+  | SMoL => src
+  | JavaScript => src->Smol_to_js.smol_to_js
+  }
+}
+
 let string_of_constant = c => {
   switch c {
   | Uni => "#<void>"
@@ -155,7 +166,7 @@ let rec string_of_expr = (e: annotated<expression>): string => {
   | Cnd(ebs, ob) => string_of_expr_cnd(ebs->map(string_of_eb), string_of_ob(ob))
   | If(e_cnd, e_thn, e_els) =>
     string_of_expr_if(string_of_expr(e_cnd), string_of_expr(e_thn), string_of_expr(e_els))
-  | Whl(e, b) => string_of_expr_whl(string_of_expr(e), string_of_block(b))
+  // | Whl(e, b) => string_of_expr_whl(string_of_expr(e), string_of_block(b))
   | Bgn(es, e) => string_of_expr_bgn(es->map(string_of_expr), string_of_expr(e))
   }
 }
@@ -163,8 +174,8 @@ and string_of_def = (d: annotated<definition>): string => {
   switch d.it {
   | Var(x, e) => string_of_def_var(x, string_of_expr(e))
   | Fun(f, xs, b) => string_of_def_fun(f->unann, xs->map(unann), string_of_block(b))
-  | For(x, e_from, e_to, b) =>
-    string_of_def_for(x, string_of_expr(e_from), string_of_expr(e_to), string_of_block(b))
+  // | For(x, e_from, e_to, b) =>
+  //   string_of_def_for(x, string_of_expr(e_from), string_of_expr(e_to), string_of_block(b))
   }
 }
 and string_of_xe = xe => {
@@ -191,12 +202,12 @@ and string_of_term = t => {
 
 let label = React.string
 
-let show_expr = e => {
-  blank(string_of_expr(e))
+let show_expr = (sk, e) => {
+  blank(string_of_expr(e) |> adjust_syntax(sk))
 }
 
-let show_value = e => {
-  blank(string_of_value(e))
+let show_value = (sk, e) => {
+  blank(string_of_value(e) |> adjust_syntax(sk))
 }
 
 let shower_of_contextFrame = frm => {
@@ -257,10 +268,10 @@ let shower_of_contextFrame = frm => {
   }
 }
 
-let show_ctx = ctx => {
+let show_ctx = (sk, ctx) => {
   let ctx = ctx->map(shower_of_contextFrame)
   let ctx = reduce(ctx, "❓", (sofar, f) => f(sofar))
-  blank(ctx)
+  blank(ctx |> adjust_syntax(sk))
 }
 
 let show_envFrm = (frm: environmentFrame) => {
@@ -403,14 +414,14 @@ let string_of_error = err => {
   }
 }
 
-let show_stkFrm = (key: int, frm: stackFrame) => {
+let show_stkFrm = (sk: syntax_kind, key: int, frm: stackFrame) => {
   let key = Int.toString(key)
   let (ctx, env) = frm
   <li key className="stack-frame box">
     {label("Waiting for a value")}
     <br />
     {label("in context ")}
-    {show_ctx(ctx)}
+    {show_ctx(sk, ctx)}
     <br />
     {label("in environment ")}
     {show_env(env)}
@@ -446,7 +457,8 @@ let show_state = (stack, now, envs, heap) => {
   </article>
 }
 
-let render: Smol.state => React.element = s => {
+let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
+  let adjust = adjust_syntax(sk)
   switch s {
   | Terminated(Err(err)) => {
       let now =
@@ -468,14 +480,14 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(Applying(f, vs, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm(sk)))
       let now =
         <p className="now box calling">
           {label("Calling ")}
-          {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)}))}
+          {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)})->adjust)}
           <br />
           {label("in context ")}
-          {show_ctx(ctx)}
+          {show_ctx(sk, ctx)}
           <br />
           {label("in environment ")}
           {show_env(env)}
@@ -485,15 +497,15 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(Applied(b, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm(sk)))
       let now =
         <p className="now box called">
           {label("Evaluating the function body")}
           <br />
-          {blank(string_of_block(b))}
+          {blank(string_of_block(b)->adjust)}
           <br />
           {label("in context ")}
-          {show_ctx(ctx)}
+          {show_ctx(sk, ctx)}
           <br />
           {label("in environment ")}
           {show_env(env)}
@@ -503,14 +515,14 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(Looping(_e, _b, exp, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm(sk)))
       let now =
         <div className="now box looping">
           <p> {label("Met a loop")} </p>
-          {show_expr(exp)}
+          {blank(string_of_expr(exp)->adjust)}
           <p>
             {label("in context ")}
-            {show_ctx(ctx)}
+            {show_ctx(sk, ctx)}
           </p>
           <p>
             {label("in environment ")}
@@ -522,18 +534,18 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(Setting(x, v, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm(sk)))
       let now =
         <div className="now box replacing">
           <p>
             {label("Replacing the value of ")}
-            {blank(unann(x))}
+            {blank(unann(x)->adjust)}
             {label(" with ")}
-            {show_value(v)}
+            {show_value(sk, v)}
           </p>
           <p>
             {label("in context ")}
-            {show_ctx(ctx)}
+            {show_ctx(sk, ctx)}
           </p>
           <p>
             {label("in environment ")}
@@ -545,7 +557,7 @@ let render: Smol.state => React.element = s => {
 
   | Continuing(VecSetting((id, _vs), i, v_val, stt)) => {
       let {ctx, env, stk} = stt
-      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm(sk)))
       let now =
         <div className="now box replacing">
           <p>
@@ -554,11 +566,11 @@ let render: Smol.state => React.element = s => {
             {label("’s ")}
             {blank(i->Int.toString)}
             {label("-th element with ")}
-            {show_value(v_val)}
+            {show_value(sk, v_val)}
           </p>
           <p>
             {label("in context ")}
-            {show_ctx(ctx)}
+            {show_ctx(sk, ctx)}
           </p>
           <p>
             {label("in environment ")}
@@ -569,12 +581,12 @@ let render: Smol.state => React.element = s => {
     }
 
   | Continuing(Returning(v, stk)) => {
-      let stk = show_stack(stk->mapWithIndex(show_stkFrm))
+      let stk = show_stack(stk->mapWithIndex(show_stkFrm(sk)))
       let now =
         <div className="now box returning">
           <p>
             {label("Returning ")}
-            {show_value(v)}
+            {show_value(sk, v)}
           </p>
         </div>
       show_state(stk, now, show_all_envs(), show_all_havs())

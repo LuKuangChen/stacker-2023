@@ -121,25 +121,25 @@ let rec term_of_sexpr = (e: annotated<S_expr.sexpr>) => {
       Exp({ann, it: Bgn(terms, result)})
     }
 
-  | List(_b, list{{it: Atom(Sym("while")), ann: _}, ...rest}) => {
-      let (cond, terms, result) = as_two_or_more(rest->map(term_of_sexpr))
-      let cond = cond->as_expr
-      let result = result |> as_expr
-      Exp({ann, it: Whl(cond, (terms, result))})
-    }
+  // | List(_b, list{{it: Atom(Sym("while")), ann: _}, ...rest}) => {
+  //     let (cond, terms, result) = as_two_or_more(rest->map(term_of_sexpr))
+  //     let cond = cond->as_expr
+  //     let result = result |> as_expr
+  //     Exp({ann, it: Whl(cond, (terms, result))})
+  //   }
 
-  | List(_b, list{{it: Atom(Sym("for")), ann: _}, ...rest}) => {
-      let (x, rest) = as_one_or_more(rest)
-      let (e_from, rest) = as_one_or_more(rest)
-      let (e_to, rest) = as_one_or_more(rest)
-      let (terms, result) = as_one_or_more_tail(rest)
-      let x = x->as_id
-      let e_from = e_from->term_of_sexpr->as_expr
-      let e_to = e_to->term_of_sexpr->as_expr
-      let terms = terms->map(term_of_sexpr)
-      let result = result->term_of_sexpr->as_expr
-      Def({ann, it: For(x, e_from, e_to, (terms, result))})
-    }
+  // | List(_b, list{{it: Atom(Sym("for")), ann: _}, ...rest}) => {
+  //     let (x, rest) = as_one_or_more(rest)
+  //     let (e_from, rest) = as_one_or_more(rest)
+  //     let (e_to, rest) = as_one_or_more(rest)
+  //     let (terms, result) = as_one_or_more_tail(rest)
+  //     let x = x->as_id
+  //     let e_from = e_from->term_of_sexpr->as_expr
+  //     let e_to = e_to->term_of_sexpr->as_expr
+  //     let terms = terms->map(term_of_sexpr)
+  //     let result = result->term_of_sexpr->as_expr
+  //     Def({ann, it: For(x, e_from, e_to, (terms, result))})
+  //   }
 
   | List(_b, list{{it: Atom(Sym("set!")), ann: _}, ...rest}) => {
       let (x, e) = as_two(rest)
@@ -205,4 +205,8 @@ let rec term_of_sexpr = (e: annotated<S_expr.sexpr>) => {
 }
 and terms_of_sexprs = es => {
   es->map(term_of_sexpr)
+}
+
+let parse_terms = src => {
+  src->S_expr.stringToSource->S_expr.parse_many->terms_of_sexprs
 }

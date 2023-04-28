@@ -56,7 +56,7 @@ let make = () => {
     Running({
       prevs: list{},
       nexts: list{},
-      now: Render.render(s),
+      now: Render.render(JavaScript, s),
       latestState: s,
     })
   }
@@ -68,7 +68,7 @@ let make = () => {
         let latestState = Smol.transition(latestState)
         Running({
           prevs: list{now, ...prevs},
-          now: Render.render(latestState),
+          now: Render.render(JavaScript, latestState),
           nexts: list{},
           latestState,
         })
