@@ -523,7 +523,8 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
     }
 
   | Continuing(Applied(b, stt)) => {
-      let {ctx, env, stk} = stt
+      // the context must be empty
+      let {ctx: _, env, stk} = stt
       let stk = show_stack(stk)
       let now =
         <p className="now box called">
