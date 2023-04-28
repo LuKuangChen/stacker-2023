@@ -1,10 +1,11 @@
 module SMoLCodeMirror = {
   @react.component @module("./my-code-mirror")
-  external make: (~value: string, ~onChange: string => ()) => React.element = "default"
+  external make: (~value: string, ~readOnly: bool, ~onChange: string => unit) => React.element =
+    "default"
 }
 
 @react.component
-let make = (~program, ~setProgram) => {
+let make = (~program, ~readOnly, ~setProgram) => {
   // let output = switch S_expr.parse_many(program |> S_expr.stringToSource) {
   // | parsed => S_expr.stringOfManySexprs(parsed)
   // | exception S_expr.WantSExprFoundEOF => "Unexpected EOF while looking for an S-expression."
@@ -16,10 +17,7 @@ let make = (~program, ~setProgram) => {
   let onChange = s => {
     setProgram(_ => s)
   }
-  <SMoLCodeMirror
-    value=program
-    onChange={onChange}
-  />
+  <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   // let onChange = evt => {
   //   let s = ReactEvent.Form.currentTarget(evt)["value"]
   //   setProgram(_ => s)

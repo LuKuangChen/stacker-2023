@@ -146,6 +146,7 @@ let make = () => {
       onNextClick(evt)
     }
   }
+  let readOnly = !(state == Editing)
   <main onKeyDown>
     <section id="program-source">
       <details>
@@ -174,7 +175,7 @@ let make = () => {
         </menu>
       </details>
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
-        <CodeEditor program setProgram />
+        <CodeEditor program readOnly setProgram />
       </div>
       <details>
         <summary> {text("Advanced configurations.")} </summary>
