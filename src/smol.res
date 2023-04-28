@@ -49,11 +49,11 @@ type symbol = string
 type rec expression =
   | ECon(constant)
   // Embedding primitive operator is necessary when we desugar for-loops
-  | EPrm(primitive)
   | Ref(annotated<symbol>)
   | Set(annotated<symbol>, annotated<expression>)
   | Lam(list<annotated<symbol>>, block)
   | Let(list<(annotated<symbol>, annotated<expression>)>, block)
+  | AppPrm(primitive, list<annotated<expression>>)
   | App(annotated<expression>, list<annotated<expression>>)
   | Bgn(list<annotated<expression>>, annotated<expression>)
   | If(annotated<expression>, annotated<expression>, annotated<expression>)
@@ -280,7 +280,7 @@ type terminated_state =
   | Err(runtime_error)
   | Tm(list<value>)
 type continuing_state =
-  | Looping(annotated<expression>, block, annotated<expression>, commomState)
+  // | Looping(annotated<expression>, block, annotated<expression>, commomState)
   | Applying(value, list<value>, commomState)
   | Applied(block, commomState)
   | Setting(annotated<symbol>, value, commomState)
@@ -315,8 +315,6 @@ and asVec = v =>
   | Vec(id, f) => (id, f)
   | _else => raise(RuntimeError(ExpectButGiven("vector", v)))
   }
-
-let doAdd = (u, v) => ECon(Num(asNum(u) +. asNum(v)))
 
 let pushStk = (new_env, {ctx, env, stk}) => {
   switch ctx {
@@ -510,7 +508,6 @@ and continue = (v: value, stt): state => {
 and doEv = (exp: annotated<expression>, stt) =>
   switch exp.it {
   | ECon(c) => continue(Con(c), stt)
-  | EPrm(p) => continue(VFun(Prm(p)), stt)
   | Ref(x) =>
     let val = doRef(stt.env, x.it)
     continue(val, stt)
@@ -530,6 +527,7 @@ and doEv = (exp: annotated<expression>, stt) =>
 
   | Bgn(es, e) => transitionBgn(es, e, stt)
 
+  | AppPrm(p, es) => transitionApp(VFun(Prm(p)), list{}, es, stt)
   | App(e, es) =>
     let exp = e
     doEv(exp, consCtx(App1((), es), stt))
@@ -716,7 +714,7 @@ let transition = (state: continuing_state): state => {
     // | Ev(exp, stt) => doEv(exp, stt)
     | Applying(f, vs, stt) => doApp(f, vs, stt)
     | Applied(b, stt) => doApped(b, stt)
-    | Looping(e, v, exp, stt) => doLoop(e, v, exp, stt)
+    // | Looping(e, v, exp, stt) => doLoop(e, v, exp, stt)
     }
   } catch {
   | RuntimeError(err) => Terminated(Err(err))

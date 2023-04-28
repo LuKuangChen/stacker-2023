@@ -195,6 +195,22 @@ let rec term_of_sexpr = (e: annotated<S_expr.sexpr>) => {
     }
 
   | Atom(atom) => Exp({ann, it: expr_of_atom(ann, atom)})
+  | List(_b, list{{it: Atom(Sym("+")), ann: _}, ...es}) => app_prm(ann, Add, es)
+  | List(_b, list{{it: Atom(Sym("-")), ann: _}, ...es}) => app_prm(ann, Sub, es)
+  | List(_b, list{{it: Atom(Sym("*")), ann: _}, ...es}) => app_prm(ann, Mul, es)
+  | List(_b, list{{it: Atom(Sym("/")), ann: _}, ...es}) => app_prm(ann, Div, es)
+  | List(_b, list{{it: Atom(Sym("<")), ann: _}, ...es}) => app_prm(ann, Lt, es)
+  | List(_b, list{{it: Atom(Sym("=")), ann: _}, ...es}) => app_prm(ann, Eq, es)
+  | List(_b, list{{it: Atom(Sym(">")), ann: _}, ...es}) => app_prm(ann, Gt, es)
+  | List(_b, list{{it: Atom(Sym("<=")), ann: _}, ...es}) => app_prm(ann, Le, es)
+  | List(_b, list{{it: Atom(Sym(">=")), ann: _}, ...es}) => app_prm(ann, Ge, es)
+  | List(_b, list{{it: Atom(Sym("!=")), ann: _}, ...es}) => app_prm(ann, Ne, es)
+  | List(_b, list{{it: Atom(Sym("vec")), ann: _}, ...es}) => app_prm(ann, VecNew, es)
+  | List(_b, list{{it: Atom(Sym("vec-ref")), ann: _}, ...es}) => app_prm(ann, VecRef, es)
+  | List(_b, list{{it: Atom(Sym("vec-set!")), ann: _}, ...es}) => app_prm(ann, VecSet, es)
+  | List(_b, list{{it: Atom(Sym("vec-len")), ann: _}, ...es}) => app_prm(ann, VecLen, es)
+  | List(_b, list{{it: Atom(Sym("eqv?")), ann: _}, ...es}) => app_prm(ann, Eqv, es)
+  | List(_b, list{{it: Atom(Sym("error")), ann: _}, ...es}) => app_prm(ann, OError, es)
   | List(_b, es) => {
       let (e, es) = as_one_or_more(es)
       let e = e->term_of_sexpr->as_expr
@@ -202,6 +218,10 @@ let rec term_of_sexpr = (e: annotated<S_expr.sexpr>) => {
       Exp({ann, it: App(e, es)})
     }
   }
+}
+and app_prm = (ann, p, es) => {
+  let es = es->map(term_of_sexpr)->map(as_expr)
+  Exp({ann, it: AppPrm(p, es)})
 }
 and terms_of_sexprs = es => {
   es->map(term_of_sexpr)
