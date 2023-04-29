@@ -3,7 +3,7 @@ open Belt
 
 @module("./random") external make_random: string => array<unit => float> = "make_random"
 
-let random_int_of_random = (. random) => {
+let randomIntOfRandom = (. random) => {
   let f = (start, end) => {
     let delta = end - start
     let offset = Js.Math.round(random() *. Int.toFloat(delta))->Int.fromFloat
@@ -12,14 +12,14 @@ let random_int_of_random = (. random) => {
   f
 }
 
-let make_random_int = seed => {
+let makeRandomInt = seed => {
   // If I don't wrap the function in an array, Rescript will automatically collapse
   // the two arrows and eta-expand the first function.
   let random: unit => float = Array.getExn(make_random(seed), 0)
-  random_int_of_random(. random)
+  randomIntOfRandom(. random)
 }
 
-let random_int = ref(make_random_int(Js.Math.random()->Float.toString))
+let randomInt = ref(makeRandomInt(Js.Math.random()->Float.toString))
 
 type primitive =
   | Add
@@ -125,14 +125,14 @@ type arity =
   | AtLeast(int)
   | Exactly(int)
 
-type runtime_error =
+type runtimeError =
   | UnboundIdentifier(symbol)
   | UsedBeforeInitialization(symbol)
   | ExpectButGiven(string, value)
   | ArityMismatch(arity, int)
   | OutOfBound(int, int)
   | UserRaised(string)
-exception RuntimeError(runtime_error)
+exception RuntimeError(runtimeError)
 
 let xsOfTerms = (ts: list<term>) => {
   open Js.List
@@ -158,8 +158,8 @@ let extend_block = (b: block, e: annotated<expression>): block => {
   (list{...ts, Exp(e0)}, e)
 }
 
-let new_hav_id = () => random_int.contents(100, 1000)
-let new_env_id = () => random_int.contents(1000, 10000)
+let newHavId = () => randomInt.contents(100, 1000)
+let newEnvId = () => randomInt.contents(1000, 10000)
 
 module IntHash = Belt.Id.MakeHashable({
   type t = int
@@ -167,10 +167,10 @@ module IntHash = Belt.Id.MakeHashable({
   let eq = (a, b) => a == b
 })
 
-let all_envs = ref(list{})
+let allEnvs = ref(list{})
 
 // hav = Heap-Allocated Values
-let all_havs: ref<list<value>> = ref(list{})
+let allHavs: ref<list<value>> = ref(list{})
 
 let makeTopLevel = (env, xs): environment => {
   // Like extend but the id is hard-coded to be top-level
@@ -180,7 +180,7 @@ let makeTopLevel = (env, xs): environment => {
     content: xs |> Js.Array.map(x => (x, ref(None))),
   }
   let env = list{frm, ...env}
-  all_envs := list{env, ...all_envs.contents}
+  allEnvs := list{env, ...allEnvs.contents}
   env
 }
 
@@ -188,13 +188,13 @@ let extend = (env, xs): environment => {
   if Array.length(xs) == 0 {
     env
   } else {
-    let id = new_env_id()
+    let id = newEnvId()
     let frm = {
       id: Int.toString(id),
       content: xs |> Js.Array.map(x => (x, ref(None))),
     }
     let env = list{frm, ...env}
-    all_envs := list{env, ...all_envs.contents}
+    allEnvs := list{env, ...allEnvs.contents}
     env
   }
 }
@@ -261,10 +261,6 @@ type stack = list<stackFrame>
 
 type commomState = {ctx: context, env: environment, stk: stack}
 
-type dec<'a, 'b> =
-  | Yes('a)
-  | No('b)
-
 let consCtx = (ctxFrame, stt) => {
   ...stt,
   ctx: list{ctxFrame, ...stt.ctx},
@@ -275,17 +271,21 @@ let caseCtx = stt => {
   | list{ctxFrame, ...ctx} => Yes(ctxFrame, {...stt, ctx})
   }
 }
-
 type terminated_state =
-  | Err(runtime_error)
+  | Err(runtimeError)
   | Tm(list<value>)
+type entrance =
+  | Let
+  | App
 type continuing_state =
   // | Looping(annotated<expression>, block, annotated<expression>, commomState)
   | Applying(value, list<value>, commomState)
-  | Applied(block, commomState)
+  // entering a block
+  | Entering(entrance, block, commomState)
   | Setting(annotated<symbol>, value, commomState)
   | VecSetting(vector, int, value, commomState)
   | Returning(value, stack)
+// a state always includes the heap. So we manage the heap as a global reference.
 type state =
   | Terminated(terminated_state)
   | Continuing(continuing_state)
@@ -416,9 +416,9 @@ and delta = (p, vs) =>
   | (Ne, list{v, ...vs}) => continue(deltaCmp((a, b) => a != b, v, vs))
   | (Eqv, list{v, ...vs}) => continue(deltaEq(eqv2, v, vs))
   | (VecNew, vs) => {
-      let id = new_hav_id()
+      let id = newHavId()
       let v = Vec(id, List.toArray(vs))
-      all_havs := list{v, ...all_havs.contents}
+      allHavs := list{v, ...allHavs.contents}
       continue(v)
     }
 
@@ -515,9 +515,9 @@ and doEv = (exp: annotated<expression>, stt) =>
     let exp = e
     doEv(exp, consCtx(Set1(x, ()), stt))
   | Lam(xs, b) => {
-      let id = new_hav_id()
+      let id = newHavId()
       let v: value = VFun(Udf(id, ref(None), exp.ann, xs |> Js.List.toVector, b, stt.env))
-      all_havs := list{v, ...all_havs.contents}
+      allHavs := list{v, ...allHavs.contents}
       continue(v, stt)
     }
 
@@ -543,7 +543,7 @@ and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>,
       xvs->Array.forEach(((x, v)) => {
         doSet(env, x, v)
       })
-      transitionBlock(b, pushStk(env, stt))
+      Continuing(Entering(Let, b, pushStk(env, stt)))
     }
 
   | list{(x, e), ...xes} => doEv(e, consCtx(Let1(xvs, (x, ()), xes, b), stt))
@@ -656,13 +656,13 @@ and doApp = (v, vs, stt): state => {
         })
       }
 
-      Continuing(Applied(b, pushStk(env, stt)))
+      Continuing(Entering(App, b, pushStk(env, stt)))
     } else {
       raise(RuntimeError(ArityMismatch(Exactly(Js.Array.length(xs)), Js.List.length(vs))))
     }
   }
 }
-and doApped = (b, stt): state => {
+and doEntering = (b, stt): state => {
   transitionBlock(b, stt)
 }
 and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>, stt) => {
@@ -688,9 +688,9 @@ and doBlk = (b, stt): state => {
 // todo
 let load = (program: program, randomSeed: string) => {
   // initialize all global things
-  all_envs := list{}
-  all_havs := list{}
-  random_int := make_random_int(randomSeed)
+  allEnvs := list{}
+  allHavs := list{}
+  randomInt := makeRandomInt(randomSeed)
 
   // now let's get started
   let xs = xsOfTerms(program)
@@ -713,7 +713,7 @@ let transition = (state: continuing_state): state => {
     | VecSetting(v, i, e, stt) => doVecSet(v, i, e, stt)
     // | Ev(exp, stt) => doEv(exp, stt)
     | Applying(f, vs, stt) => doApp(f, vs, stt)
-    | Applied(b, stt) => doApped(b, stt)
+    | Entering(_, b, stt) => doEntering(b, stt)
     // | Looping(e, v, exp, stt) => doLoop(e, v, exp, stt)
     }
   } catch {

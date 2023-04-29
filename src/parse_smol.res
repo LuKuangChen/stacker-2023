@@ -3,19 +3,19 @@ open Utilities
 open Belt.List
 open Belt
 
-exception ExpectingSymbol
+exception ExpectingSymbol(string)
 let as_id = (e: annotated<S_expr.sexpr>) => {
   switch e.it {
   | S_expr.Atom(Sym(x)) => {it: x, ann: e.ann}
-  | _ => raise(ExpectingSymbol)
+  | _ => raise(ExpectingSymbol(S_expr.stringOfSexpr(e)))
   }
 }
 
-exception ExpectingList
+exception ExpectingList(string)
 let as_list = (e: annotated<S_expr.sexpr>) => {
   switch e.it {
   | S_expr.List(_b, ls) => ls
-  | _ => raise(ExpectingList)
+  | _ => raise(ExpectingList(S_expr.stringOfSexpr(e)))
   }
 }
 

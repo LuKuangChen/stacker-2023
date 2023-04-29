@@ -1,5 +1,16 @@
 # Stacker
 
+## Known Issues
+
+Parsing errors are not reported.
+
+To support Python-like syntax
+
+Keyboard shortcut is unstable.
+
+ReScript-React registers tons of unused event handlers to the root element. This might
+raise accessibility problem.
+
 ## Development
 
 ### For every fresh clone
@@ -25,18 +36,11 @@ npm run wpk:start
 
 This will run a Webpack program that keeps `.css`, `.js`, etc. and the final webpage in sync.
 
-## Naming conventions
+## File Types
 
 - `Xyz.res`: a React component
 - `xyz.res`: a module
 - `webpack.config.js`: the webpack configuration
-
-## Known Issues
-
-Keyboard shortcut is unstable.
-
-ReScript-React registers tons of unused event handlers to the root element. This might
-raise accessibility problem.
 
 ## Accessibility Consideration
 
@@ -44,7 +48,7 @@ raise accessibility problem.
 
 https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA
 
-> "No ARIA is better than no ARIA".
+> "No ARIA is better than bad ARIA."
 
 ### No tooltips?
 
@@ -63,13 +67,13 @@ The original design can be found in the following publication:
 When Stacks Don’t Stack Up." Proceedings of the 2022 ACM Conference on
 International Computing Education Research-Volume 1. 2022.
 
-During the revision of the design, numerous people have contributed feedback, notably:
+During the revision of the design, many people have contributed feedback, notably:
 
 - Students who attended [CSCI1730 in 2022](https://cs.brown.edu/courses/cs173/2022/)
 - Kuang-Chen's friends and/or peers:
-  [Elijah Rivera](https://www.elijahrivera.com/),
-  [Siddhartha Prasad](https://www.siddharthaprasad.com),
-  [Yanyan Ren](https://yanyanr.github.io/), and
+  [Elijah Rivera](https://www.elijahrivera.com/)
+  [Siddhartha Prasad](https://www.siddharthaprasad.com)
+  [Yanyan Ren](https://yanyanr.github.io/)
   [Yanru Liao](https://www.linkedin.com/in/yanru-liao-7780b2243/)
 - Several audiences of [the Stacker talk](https://youtu.be/y42WZS4spfo) in the 12th
   [RacketCon](https://con.racket-lang.org/), notably

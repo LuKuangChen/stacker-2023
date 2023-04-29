@@ -274,6 +274,13 @@ let string_of_ctxFrame = frm => {
   }
 }
 
+let stringOfEntrance = entrance => {
+  switch entrance {
+  | App => "a function body"
+  | Let => "a `let` body"
+  }
+}
+
 let label = React.string
 
 exception Impossible(string)
@@ -350,11 +357,11 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
   }
 
   let show_all_envs = () => {
-    if all_envs.contents === list{} {
+    if allEnvs.contents === list{} {
       <p> {label("(No environments)")} </p>
     } else {
       <ol className="box-list" ariaLabel="a list of all environments">
-        {React.array(all_envs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)}
+        {React.array(allEnvs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)}
       </ol>
     }
   }
@@ -417,11 +424,11 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
   }
 
   let show_all_havs = () => {
-    if all_havs.contents === list{} {
+    if allHavs.contents === list{} {
       <p> {label("(No heap-allocated values)")} </p>
     } else {
       <ol className="box-list" ariaLabel="a list of all heap-allocated values">
-        {React.array(all_havs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)}
+        {React.array(allHavs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)}
       </ol>
     }
   }
@@ -522,13 +529,13 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
       show_state(stk, now, show_all_envs(), show_all_havs())
     }
 
-  | Continuing(Applied(b, stt)) => {
+  | Continuing(Entering(entrance, b, stt)) => {
       // the context must be empty
       let {ctx: _, env, stk} = stt
       let stk = show_stack(stk)
       let now =
         <p className="now box called">
-          {label("Evaluating the function body")}
+          {label(`Evaluating ${stringOfEntrance(entrance)}`)}
           <br />
           {blank(string_of_block(b)->tr_fun_body)}
           // <br />
