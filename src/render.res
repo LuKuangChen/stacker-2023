@@ -10,12 +10,14 @@ open Belt
 open List
 
 type syntax_kind =
-  | SMoL
+  | Lisp
   | JavaScript
+  | Python
 
 let id = x => x
 
 type translator = {
+  tr_term: string => string,
   tr_expr: string => string,
   tr_top_level: string => string,
   tr_fun_body: string => string,
@@ -23,15 +25,23 @@ type translator = {
 
 let adjust_syntax = sk => {
   switch sk {
-  | SMoL => {
+  | Lisp => {
+      tr_term: id,
       tr_expr: id,
       tr_top_level: id,
       tr_fun_body: id,
     }
   | JavaScript => {
+      tr_term: Smol_to_js.smol_to_js(Term),
       tr_expr: Smol_to_js.smol_to_js(Expr(false)),
       tr_top_level: Smol_to_js.smol_to_js(Stat),
       tr_fun_body: Smol_to_js.smol_to_js(Return),
+    }
+  | Python => {
+      tr_term: Smol_to_py.smol_to_py(Term),
+      tr_expr: Smol_to_py.smol_to_py(Expr(false)),
+      tr_top_level: Smol_to_py.smol_to_py(Stat),
+      tr_fun_body: Smol_to_py.smol_to_py(Return),
     }
   }
 }
@@ -66,7 +76,7 @@ let string_of_prm = (o: primitive) => {
   | VecRef => "vec-ref"
   | VecSet => "vec-set!"
   | VecLen => "vec-len"
-  | Eqv => "eqv?"
+  | Eqv => "eq?"
   | OError => "error"
   }
 }
@@ -285,7 +295,7 @@ let label = React.string
 
 exception Impossible(string)
 let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
-  let {tr_expr, tr_fun_body, tr_top_level} = adjust_syntax(sk)
+  let {tr_term, tr_expr, tr_fun_body, tr_top_level} = adjust_syntax(sk)
 
   let show_value = e => {
     blank(string_of_value(e) |> tr_expr)
@@ -369,7 +379,13 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
   let show_one_hav = (key: int, val: value): React.element => {
     let key = Int.toString(key)
     switch val {
-    | VFun(Udf(id, _name, ann, xs, body, env)) => {
+    | VFun(Udf(id, name, ann, xs, body, env)) => {
+        let string_of_udf = (name, xs, body) => {
+          switch name.contents {
+          | None => string_of_expr_lam(xs, body)
+          | Some(f) => string_of_def_fun(f, xs, body)
+          }
+        }
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
@@ -386,10 +402,11 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
             </summary>
             <p>
               {blank(
-                string_of_expr_lam(
+                string_of_udf(
+                  name,
                   xs->List.fromArray->map(unann),
                   string_of_block(body),
-                ) |> tr_expr,
+                ) |> tr_term,
               )}
             </p>
           </details>
@@ -493,138 +510,131 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
       </section>
     </article>
   }
+  let nowOfTerminatedState = s => {
+    switch s {
+    | Err(err) =>
+      <div className="now box errored">
+        <p> {label("Errored")} </p>
+        {blank(string_of_error(err))}
+      </div>
+
+    | Tm(vs) =>
+      <div className="now box terminated">
+        <p> {label("Terminated")} </p>
+        {blank(String.concat("\n", vs->reverse->map(string_of_value)))}
+      </div>
+    }
+  }
+  let nowOfRedex = (redex, ctx, env) => {
+    switch redex {
+    | Applying(f, vs) =>
+      <p className="now box calling">
+        {label("Calling ")}
+        {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)})->tr_expr)}
+        <br />
+        {label("in context ")}
+        {ctx}
+        <br />
+        {label("in environment ")}
+        {env}
+      </p>
+
+    // | Looping(_e, _b, exp) => {
+    //     let {ctx, env, stk} = stt
+    //     let stk = show_stack(stk)
+    //       <div className="now box looping">
+    //         <p> {label("Met a loop")} </p>
+    //         {blank(string_of_expr(exp)->adjust)}
+    //         <p>
+    //           {label("in context ")}
+    //           {ctx}
+    //         </p>
+    //         <p>
+    //           {label("in environment ")}
+    //           {env}
+    //         </p>
+    //       </div>
+    //   }
+
+    | Setting(x, v) =>
+      <p className="now box replacing">
+        {label("Replacing a variable's value ")}
+        <br />
+        {blank(string_of_expr_set(unann(x), string_of_value(v))->tr_expr)}
+        <br />
+        {label("in context ")}
+        {ctx}
+        <br />
+        {label("in environment ")}
+        {env}
+      </p>
+
+    | VecSetting((id, _vs), i, v_val) =>
+      <p className="now box replacing ">
+        {label("Replacing a vector element ")}
+        <br />
+        {blank(
+          string_of_expr_app(
+            string_of_prm(VecSet),
+            list{`@${Int.toString(id)}`, Int.toString(i), string_of_value(v_val)},
+          )->tr_expr,
+        )}
+        <br />
+        {label("in context ")}
+        {ctx}
+        <br />
+        {label("in environment ")}
+        {env}
+      </p>
+    }
+  }
+  let show_continuing_state = state => {
+    switch state {
+    | Returning(v, stk) => {
+        let stk = show_stack(stk)
+        let now =
+          <div className="now box returning">
+            <p>
+              {label("Returning ")}
+              {show_value(v)}
+            </p>
+          </div>
+        show_state(stk, now, show_all_envs(), show_all_havs())
+      }
+
+    | Entering(entrance, b, env, stk) => {
+        let stk = show_stack(stk)
+        let now =
+          <p className="now box called">
+            {label(`Evaluating ${stringOfEntrance(entrance)}`)}
+            <br />
+            {blank(string_of_block(b)->tr_fun_body)}
+            <br />
+            {label("in environment ")}
+            {show_env(env)}
+          </p>
+        show_state(stk, now, show_all_envs(), show_all_havs())
+      }
+
+    | Reducing(redex, stt) => {
+        let {ctx, env, stk} = stt
+        let now = nowOfRedex(
+          redex,
+          ctx->if stk == list{} {
+            show_top_level_ctx
+          } else {
+            show_ctx
+          },
+          env->show_env,
+        )
+        let stk = show_stack(stk)
+        show_state(stk, now, show_all_envs(), show_all_havs())
+      }
+    }
+  }
   switch s {
-  | Terminated(Err(err)) => {
-      let now =
-        <div className="now box errored">
-          <p> {label("Errored")} </p>
-          {blank(string_of_error(err))}
-        </div>
-      show_state(show_stack(list{}), now, show_all_envs(), show_all_havs())
-    }
-
-  | Terminated(Tm(vs)) => {
-      let now =
-        <div className="now box terminated">
-          <p> {label("Terminated")} </p>
-          {blank(String.concat("\n", vs->reverse->map(string_of_value)))}
-        </div>
-      show_state(show_stack(list{}), now, show_all_envs(), show_all_havs())
-    }
-
-  | Continuing(Applying(f, vs, stt)) => {
-      let {ctx, env, stk} = stt
-      let stk = show_stack(list{(ctx, env), ...stk})
-      let now =
-        <p className="now box calling">
-          {label("Calling ")}
-          {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)})->tr_expr)}
-          // <br />
-          // {label("in context ")}
-          // {show_ctx(ctx)}
-          // <br />
-          // {label("in environment ")}
-          // {show_env(env)}
-        </p>
-      show_state(stk, now, show_all_envs(), show_all_havs())
-    }
-
-  | Continuing(Entering(entrance, b, stt)) => {
-      // the context must be empty
-      let {ctx: _, env, stk} = stt
-      let stk = show_stack(stk)
-      let now =
-        <p className="now box called">
-          {label(`Evaluating ${stringOfEntrance(entrance)}`)}
-          <br />
-          {blank(string_of_block(b)->tr_fun_body)}
-          // <br />
-          // {label("in context ")}
-          // {show_ctx(ctx)}
-          <br />
-          {label("in environment ")}
-          {show_env(env)}
-        </p>
-      show_state(stk, now, show_all_envs(), show_all_havs())
-    }
-
-  // | Continuing(Looping(_e, _b, exp, stt)) => {
-  //     let {ctx, env, stk} = stt
-  //     let stk = show_stack(stk)
-  //     let now =
-  //       <div className="now box looping">
-  //         <p> {label("Met a loop")} </p>
-  //         {blank(string_of_expr(exp)->adjust)}
-  //         <p>
-  //           {label("in context ")}
-  //           {show_ctx(ctx)}
-  //         </p>
-  //         <p>
-  //           {label("in environment ")}
-  //           {show_env(env)}
-  //         </p>
-  //       </div>
-  //     show_state(stk, now, show_all_envs(), show_all_havs())
-  //   }
-
-  | Continuing(Setting(x, v, stt)) => {
-      let {ctx, env, stk} = stt
-      let stk = show_stack(list{(ctx, env), ...stk})
-      let now =
-        <div className="now box replacing">
-          <p>
-            {label("Replacing the value of ")}
-            {blank(unann(x)->tr_expr)}
-            {label(" with ")}
-            {blank(string_of_value(v)->tr_expr)}
-          </p>
-          // <p>
-          // {label("in context ")}
-          // {show_ctx(ctx)}
-          // </p>
-          // <p>
-          // {label("in environment ")}
-          // {show_env(env)}
-          // </p>
-        </div>
-      show_state(stk, now, show_all_envs(), show_all_havs())
-    }
-
-  | Continuing(VecSetting((id, _vs), i, v_val, stt)) => {
-      let {ctx, env, stk} = stt
-      let stk = show_stack(list{(ctx, env), ...stk})
-      let now =
-        <div className="now box replacing">
-          <p>
-            {label("Replacing ")}
-            {blank(`@${Int.toString(id)}`)}
-            {label("’s ")}
-            {blank(i->Int.toString)}
-            {label("-th element with ")}
-            {show_value(v_val)}
-          </p>
-          // <p>
-          // {label("in context ")}
-          // {show_ctx(ctx)}
-          // </p>
-          // <p>
-          // {label("in environment ")}
-          // {show_env(env)}
-          // </p>
-        </div>
-      show_state(stk, now, show_all_envs(), show_all_havs())
-    }
-
-  | Continuing(Returning(v, stk)) => {
-      let stk = show_stack(stk)
-      let now =
-        <div className="now box returning">
-          <p>
-            {label("Returning ")}
-            {show_value(v)}
-          </p>
-        </div>
-      show_state(stk, now, show_all_envs(), show_all_havs())
-    }
+  | Terminated(state) =>
+    show_state(show_stack(list{}), nowOfTerminatedState(state), show_all_envs(), show_all_havs())
+  | Continuing(state) => show_continuing_state(state)
   }
 }

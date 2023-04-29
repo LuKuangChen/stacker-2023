@@ -1,9 +1,11 @@
 kbd::before {
     content: "(";
 }
+
 kbd::after {
     content: ")";
 }
+
 kbd {
     margin-left: 1ex;
 }
@@ -85,7 +87,7 @@ section#stacker>article#stacker-configuration {
 }
 
 code.blank {
-    display: inline-block;
+    display: inline-flex;
     white-space: pre-wrap;
     color: black;
     background-color: white;

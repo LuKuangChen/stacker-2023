@@ -17,13 +17,13 @@ type js_ctx =
 
 let string_of_constant = c => {
   switch c {
-  | Uni => "null"
+  | Uni => "None"
   | Num(n) => Float.toString(n)
   | Lgc(l) =>
     if l {
-      "true"
+      "True"
     } else {
-      "false"
+      "False"
     }
   | Str(s) => "\"" ++ String.escaped(s) ++ "\""
   }
@@ -34,7 +34,7 @@ let string_of_list = ss => {
 }
 
 let string_of_def_var = (x, e) => {
-  `let ${x.it} = ${e};`
+  `${x.it} = ${e}`
 }
 
 // let string_of_def_for = (_x, _e_from, _e_to, _body) => {
@@ -42,15 +42,19 @@ let string_of_def_var = (x, e) => {
 // }
 
 let string_of_def_fun = (f, xs, b) => {
-  `function ${f}${string_of_list(xs)} {\n  ${indent(b, 2)}\n}`
+  `def ${f}${string_of_list(xs)}:\n    ${indent(b, 4)}`
 }
 
 let string_of_expr_set = (x, e) => {
-  `${x} = ${e}`
+  `${x} := ${e}`
 }
 
 let string_of_expr_lam = (xs, b) => {
-  `function ${string_of_list(xs)} {\n  ${indent(b, 2)}\n}`
+  if xs == list{} {
+    `lambda: ${b}`
+  } else {
+    `lambda ${String.concat(",", xs)}: ${b}`
+  }
 }
 
 let string_of_expr_app_prm = (p, es) => {
@@ -60,7 +64,7 @@ let string_of_expr_app_prm = (p, es) => {
   | (Mul, es) => `${String.concat(" * ", es)}`
   | (Div, es) => `${String.concat(" / ", es)}`
   | (Lt, list{e1, e2}) => `${e1} < ${e2}`
-  | (Eq, list{e1, e2}) => `${e1} === ${e2}`
+  | (Eq, list{e1, e2}) => `${e1} is ${e2}`
   | (Gt, list{e1, e2}) => `${e1} > ${e2}`
   | (Le, list{e1, e2}) => `${e1} <= ${e2}`
   | (Ge, list{e1, e2}) => `${e1} >= ${e2}`
@@ -69,8 +73,8 @@ let string_of_expr_app_prm = (p, es) => {
   | (VecSet, list{e1, e2, e3}) => `${e1}[${e2}] = ${e3}`
   | (VecRef, list{e1, e2}) => `${e1}[${e2}]`
   | (VecLen, list{e}) => `${e}.length`
-  | (Eqv, list{e1, e2}) => `${e1} === ${e2}`
-  | (OError, list{e}) => `throw ${e}`
+  | (Eqv, list{e1, e2}) => `${e1} is ${e2}`
+  | (OError, list{e}) => `raise ${e}`
   | _ => "/* a primitive operation not supported yet */"
   }
 }
@@ -80,7 +84,7 @@ let string_of_expr_app = (e, es) => {
 }
 
 let string_of_expr_bgn = (es, e) => {
-  `(${String.concat(", ", list{...es, e})})`
+  `(${String.concat(", ", list{...es, e})})[-1]`
 }
 
 // let string_of_expr_whl = (_e, _b) => {
@@ -91,21 +95,20 @@ let string_of_expr_cnd = (ebs: list<(string, string)>, ob) => {
   let ob = {
     switch ob {
     | None => ""
-    | Some(b) => ` else {\n  ${indent(b, 2)}\n}`
+    | Some(b) => `else:\n    ${indent(b, 4)}`
     }
   }
-  let ebs = ebs->map(((e, b)) => `if (${e}) {\n  ${indent(b, 2)}\n}`)
-  let ebs = String.concat(" else ", ebs)
+  let ebs = ebs->map(((e, b)) => `if ${e}:\n    ${indent(b, 2)}\n`)
+  let ebs = String.concat("el", ebs)
   ebs ++ ob
 }
 
 let string_of_expr_if = (e_cnd: string, e_thn: string, e_els: string) => {
-  `(${e_cnd} ? ${e_thn} : ${e_els})`
+  `${e_thn} if ${e_cnd} else ${e_els}`
 }
 
-let string_of_expr_let = (xes, b) => {
-  `((${xes->map(((x, _e)) => x) |> String.concat(", ")})=>{${b}})(${xes->map(((_x, e)) => e)
-      |> String.concat(", ")})`
+let string_of_expr_let = (_xes, _b) => {
+  `"...a let-expression..."`
 }
 
 let maybe_wrap = (ctx, code) => {
@@ -117,10 +120,8 @@ let maybe_wrap = (ctx, code) => {
 
 let consider_context = (ctx: js_ctx, code: string) => {
   switch ctx {
-  | Term
-  | Expr(_) => code
-  | Stat => `${code};`
-  | Return => `return ${code};`
+  | Return => `return ${code}`
+  | _ => code
   }
 }
 
@@ -131,7 +132,14 @@ let rec string_of_expr = (ctx: js_ctx, e: annotated<expression>): string => {
   | Set(x, e) =>
     string_of_expr_set(x->unann, string_of_expr(Expr(false), e)) |> consider_context(ctx)
   | Lam(xs, b) =>
-    string_of_expr_lam(xs->map(unann), string_of_block(Return, b)) |> consider_context(ctx)
+    let b = {
+      let (ts, e) = b
+      switch ts {
+      | list{} => string_of_expr(Expr(false), e)
+      | _ => "..."
+      }
+    }
+    string_of_expr_lam(xs->map(unann), b) |> consider_context(ctx)
   | AppPrm(p, es) =>
     let o = string_of_expr_app_prm(p, es->map(string_of_expr(Expr(true)))) |> maybe_wrap(ctx)
     if p != OError {
@@ -146,7 +154,11 @@ let rec string_of_expr = (ctx: js_ctx, e: annotated<expression>): string => {
     ) |> consider_context(ctx)
   | Let(xes, b) =>
     string_of_expr_let(xes->map(string_of_xe), string_of_block(Return, b)) |> consider_context(ctx)
-  | Cnd(ebs, ob) => string_of_expr_cnd(ebs->map(string_of_eb(ctx)), string_of_ob(ctx, ob))
+  | Cnd(ebs, ob) =>
+    switch ctx {
+    | Expr(_) => "if..."
+    | _ => string_of_expr_cnd(ebs->map(string_of_eb(ctx)), string_of_ob(ctx, ob))
+    }
   | If(e_cnd, e_thn, e_els) =>
     string_of_expr_if(
       string_of_expr(Expr(false), e_cnd),
@@ -201,7 +213,7 @@ let string_of_top_level = ts => {
   ts->map(string_of_term) |> String.concat("\n")
 }
 
-let smol_to_js: (js_ctx, string) => string = (ctx, smol_program) => {
+let smol_to_py: (js_ctx, string) => string = (ctx, smol_program) => {
   let ts = smol_program->Parse_smol.parse_terms
   switch (ctx, ts) {
   | (Term, list{t}) => string_of_term(t)

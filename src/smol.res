@@ -169,6 +169,7 @@ module IntHash = Belt.Id.MakeHashable({
 
 let allEnvs = ref(list{})
 
+type heap = ref<list<value>>
 // hav = Heap-Allocated Values
 let allHavs: ref<list<value>> = ref(list{})
 
@@ -259,7 +260,7 @@ type context = list<contextFrame>
 type stackFrame = (context, environment)
 type stack = list<stackFrame>
 
-type commomState = {ctx: context, env: environment, stk: stack}
+type stackWithLocal = {ctx: context, env: environment, stk: stack}
 
 let consCtx = (ctxFrame, stt) => {
   ...stt,
@@ -277,14 +278,18 @@ type terminated_state =
 type entrance =
   | Let
   | App
+type redex =
+  | Applying(value, list<value>)
+  | Setting(annotated<symbol>, value)
+  | VecSetting(vector, int, value)
 type continuing_state =
-  // | Looping(annotated<expression>, block, annotated<expression>, commomState)
-  | Applying(value, list<value>, commomState)
-  // entering a block
-  | Entering(entrance, block, commomState)
-  | Setting(annotated<symbol>, value, commomState)
-  | VecSetting(vector, int, value, commomState)
+  // no env and no ctx
   | Returning(value, stack)
+  // no env
+  | Entering(entrance, block, environment, stack)
+  // all in
+  | Reducing(redex, stackWithLocal)
+// | Looping(annotated<expression>, block, annotated<expression>, commomState)
 // a state always includes the heap. So we manage the heap as a global reference.
 type state =
   | Terminated(terminated_state)
@@ -316,15 +321,16 @@ and asVec = v =>
   | _else => raise(RuntimeError(ExpectButGiven("vector", v)))
   }
 
-let pushStk = (new_env, {ctx, env, stk}) => {
+let pushStk = ({ctx, env, stk}) => {
   switch ctx {
   // tail-call optimization
-  | list{} => {ctx: list{}, env: new_env, stk}
-  | _ => // if new_env === env {
+  | list{} => stk
+  | _ =>
+    // if new_env === env {
     //   // no need to push stack if the environment is the same
     //   {ctx, env, stk}
     // } else {
-    {ctx: list{}, env: new_env, stk: list{(ctx, env), ...stk}}
+    list{(ctx, env), ...stk}
   // }
   }
 }
@@ -439,7 +445,7 @@ and delta = (p, vs) =>
   | (VecSet, list{v_vec, v_ind, v_val}) => {
       let v_vec = asVec(v_vec)
       let v_ind = asNum(v_ind)->Float.toInt
-      stt => Continuing(VecSetting(v_vec, v_ind, v_val, stt))
+      stt => Continuing(Reducing(VecSetting(v_vec, v_ind, v_val), stt))
     }
 
   | (OError, list{v}) => {
@@ -466,7 +472,7 @@ and continue = (v: value, stt): state => {
   | No(stk) => Continuing(Returning(v, stk))
   | Yes(ctxFrame, stt) =>
     switch ctxFrame {
-    | Set1(x, ()) => Continuing(Setting(x, v, stt))
+    | Set1(x, ()) => Continuing(Reducing(Setting(x, v), stt))
     | Let1(xvs, (x, ()), xes, b) => transitionLet(list{(x, v), ...xvs}, xes, b, stt)
     // | Whl1((), b) => {
     //   switch asLgc(v) {
@@ -543,7 +549,7 @@ and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>,
       xvs->Array.forEach(((x, v)) => {
         doSet(env, x, v)
       })
-      Continuing(Entering(Let, b, pushStk(env, stt)))
+      Continuing(Entering(Let, b, env, pushStk(stt)))
     }
 
   | list{(x, e), ...xes} => doEv(e, consCtx(Let1(xvs, (x, ()), xes, b), stt))
@@ -656,14 +662,14 @@ and doApp = (v, vs, stt): state => {
         })
       }
 
-      Continuing(Entering(App, b, pushStk(env, stt)))
+      Continuing(Entering(App, b, env, pushStk(stt)))
     } else {
       raise(RuntimeError(ArityMismatch(Exactly(Js.Array.length(xs)), Js.List.length(vs))))
     }
   }
 }
-and doEntering = (b, stt): state => {
-  transitionBlock(b, stt)
+and doEntering = (b, env, stk): state => {
+  transitionBlock(b, {ctx: list{}, env, stk})
 }
 and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>, stt) => {
   switch es {
@@ -672,7 +678,7 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
       switch f {
       // Don't pause if we are applying a primitive operator
       | VFun(Prm(_)) => doApp(f, vs, stt)
-      | _ => Continuing(Applying(f, vs, stt))
+      | _ => Continuing(Reducing(Applying(f, vs), stt))
       }
     }
 
@@ -682,7 +688,10 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
   }
 }
 and doBlk = (b, stt): state => {
-  transitionBlock(b, pushStk(extend(stt.env, xsOfBlock(b)->Array.map(unann)), stt))
+  transitionBlock(
+    b,
+    {ctx: list{}, env: extend(stt.env, xsOfBlock(b)->Array.map(unann)), stk: pushStk(stt)},
+  )
 }
 
 // todo
@@ -709,12 +718,14 @@ let transition = (state: continuing_state): state => {
   try {
     switch state {
     | Returning(v, stk) => return(v, stk)
-    | Setting(x, v, stt) => setting(x, v, stt)
-    | VecSetting(v, i, e, stt) => doVecSet(v, i, e, stt)
-    // | Ev(exp, stt) => doEv(exp, stt)
-    | Applying(f, vs, stt) => doApp(f, vs, stt)
-    | Entering(_, b, stt) => doEntering(b, stt)
-    // | Looping(e, v, exp, stt) => doLoop(e, v, exp, stt)
+    | Entering(_, b, env, stk) => doEntering(b, env, stk)
+    | Reducing(redex, stt) =>
+      switch redex {
+      | Setting(x, v) => setting(x, v, stt)
+      | VecSetting(v, i, e) => doVecSet(v, i, e, stt)
+      | Applying(f, vs) => doApp(f, vs, stt)
+      // | Looping(e, v, exp) => doLoop(e, v, exp, stt)
+      }
     }
   } catch {
   | RuntimeError(err) => Terminated(Err(err))

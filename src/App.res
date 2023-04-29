@@ -1,11 +1,20 @@
 open Belt
 open Utilities
 
+@module("./url_parameters") external syntaxAtURL: string = "syntaxAtURL"
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
-@module("./url_parameters") external make_url: (string, int, string) => string = "make_url"
+@module("./url_parameters") external make_url: (string, string, int, string) => string = "make_url"
 @scope("window") @val external openPopUp: string => unit = "openPopUp"
+
+let parseSyntax = newValue =>
+  switch newValue {
+  | "Lisp" => Render.Lisp
+  | "JavaScript" => JavaScript
+  | "Python" => Python
+  | _ => Lisp
+  }
 
 type running_state = {
   prevs: list<React.element>,
@@ -41,6 +50,13 @@ type randomSeedConfig = {isSet: bool, randomSeed: string}
 let make = () => {
   let (program, setProgram) = React.useState(_ => "")
   let (nNext, setNNext) = React.useState(_ => 0)
+  let (syntax, setsyntax) = React.useState(_ => {
+    if syntaxAtURL == "" {
+      "Lisp"
+    } else {
+      syntaxAtURL
+    }
+  })
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
     if randomSeedAtURL == "" {
       {isSet: false, randomSeed: new_randomSeed()}
@@ -56,7 +72,7 @@ let make = () => {
     Running({
       prevs: list{},
       nexts: list{},
-      now: Render.render(JavaScript, s),
+      now: Render.render(parseSyntax(syntax), s),
       latestState: s,
     })
   }
@@ -68,7 +84,7 @@ let make = () => {
         let latestState = Smol.transition(latestState)
         Running({
           prevs: list{now, ...prevs},
-          now: Render.render(JavaScript, latestState),
+          now: Render.render(parseSyntax(syntax), latestState),
           nexts: list{},
           latestState,
         })
@@ -135,7 +151,7 @@ let make = () => {
   | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   let onShare = _evt => {
-    openPopUp(make_url(randomSeed.randomSeed, nNext, program))
+    openPopUp(make_url(syntax, randomSeed.randomSeed, nNext, program))
   }
   let onKeyDown = evt => {
     let key = ReactEvent.Keyboard.key(evt)
@@ -153,32 +169,98 @@ let make = () => {
         <summary> {text("We provided some example programs.")} </summary>
         <menu ariaLabel="a list of example programs">
           <li>
-            <button value="Fibonacci" onClick={_evt => setProgram(_ => Programs.program_fib)}>
+            <button
+              disabled={readOnly}
+              value="Fibonacci"
+              onClick={_evt => setProgram(_ => Programs.program_fib)}>
               {text("Fibonacci")}
             </button>
           </li>
           <li>
-            <button value="Scope" onClick={_evt => setProgram(_ => Programs.program_dynscope)}>
+            <button
+              disabled={readOnly}
+              value="Scope"
+              onClick={_evt => setProgram(_ => Programs.program_dynscope)}>
               {text("Scope")}
             </button>
           </li>
           <li>
-            <button value="Counter" onClick={_evt => setProgram(_ => Programs.program_ctr)}>
-              {text("Counter")}
+            <button
+              disabled={readOnly}
+              value="Counter1"
+              onClick={_evt => setProgram(_ => Programs.program_ctr1)}>
+              {text("Counter1")}
             </button>
           </li>
           <li>
-            <button value="Aliasing" onClick={_evt => setProgram(_ => Programs.program_aliasing)}>
+            <button
+              disabled={readOnly}
+              value="Counter2"
+              onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
+              {text("Counter2")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={readOnly}
+              value="Aliasing"
+              onClick={_evt => setProgram(_ => Programs.program_aliasing)}>
               {text("Aliasing")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={readOnly}
+              value="Object"
+              onClick={_evt => setProgram(_ => Programs.program_object)}>
+              {text("Object")}
             </button>
           </li>
         </menu>
       </details>
+      {if readOnly {
+        <p>
+          <mark>
+            <button onClick=onStopClick disabled={state == Editing}>
+              <span ariaHidden={true}> {text("⏹ ")} </span>
+              {text("Stop")}
+            </button>
+            {text(" before making any change!")}
+          </mark>
+        </p>
+      } else {
+        React.array([])
+      }}
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
-        <CodeEditor program readOnly setProgram />
+        <CodeEditor
+          program={if readOnly {
+            program->Render.adjust_syntax(parseSyntax(syntax)).tr_top_level
+          } else {
+            program
+          }}
+          readOnly
+          setProgram
+        />
       </div>
-      <details>
+      <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
         <summary> {text("Advanced configurations.")} </summary>
+        <label>
+          {text("Syntax-flavor =")}
+          {
+            let onChange = evt => {
+              let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+              setsyntax(_ => newValue)
+            }
+            <select onChange disabled={readOnly}>
+              <option selected={"Lisp" == syntax} value="Lisp"> {text("Lisp-like")} </option>
+              <option selected={"JavaScript" == syntax} value="JavaScript">
+                {text("JavaScript-like")}
+              </option>
+              <option selected={"Python" == syntax} value="Python"> {text("Python-like")} </option>
+            </select>
+          }
+        </label>
+        <br />
         <label>
           {text("Random Seed = ")}
           {
@@ -187,9 +269,11 @@ let make = () => {
               setRandomSeed(_ => {isSet: true, randomSeed: newValue})
             }
             if randomSeed.isSet {
-              <input type_="text" value={randomSeed.randomSeed} onChange />
+              <input disabled={readOnly} type_="text" value={randomSeed.randomSeed} onChange />
             } else {
-              <input type_="text" placeholder={randomSeed.randomSeed} onChange />
+              <input
+                disabled={readOnly} type_="text" placeholder={randomSeed.randomSeed} onChange
+              />
             }
           }
         </label>
