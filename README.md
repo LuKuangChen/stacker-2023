@@ -67,7 +67,9 @@ Add list-processing higher-order functions.
 
 ### Know Issues: restrictions that we don't plan to (or simply can't) resolve
 
-Some programs can't be presented in Python-syntax. This restriction is mostly caused by the facts that Python have no let expressions, that Python's lambda only allow exactly one expression as its body, and that Python use the same syntax for variable definition and variable mutation.
+Some programs can't be presented in Python-syntax. This restriction is mostly caused by the facts that Python have no let expressions, that Python's lambda only allow exactly one expression as its body.
+
+Python uses the same syntax for variable definition and variable mutation. Although this design might work well most of the time, there are programs, especially tricky programs, where disambiguation is needed. Python disambiguates with `local` and `global` keywords. We don't intend to support this Python characteristics and use `:=` for variable mutations and `=` for variable definitions.
 
 JavaScript similarly has a restriction -- there is no let expression in JavaScript.
 

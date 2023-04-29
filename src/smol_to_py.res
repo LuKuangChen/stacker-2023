@@ -33,8 +33,20 @@ let string_of_list = ss => {
   "(" ++ String.concat(" ", ss) ++ ")"
 }
 
+let string_of_identifier = x => {
+  if x != "-" {
+    let re = %re("/-/g")
+    let matchFn = (_matchPart, _offset, _wholeString) => {
+      "_"
+    }
+    Js.String2.unsafeReplaceBy0(x, re, matchFn)
+  } else {
+    x
+  }
+}
+
 let string_of_def_var = (x, e) => {
-  `${x.it} = ${e}`
+  `${string_of_identifier(x.it)} = ${e}`
 }
 
 // let string_of_def_for = (_x, _e_from, _e_to, _body) => {
@@ -128,9 +140,12 @@ let consider_context = (ctx: js_ctx, code: string) => {
 let rec string_of_expr = (ctx: js_ctx, e: annotated<expression>): string => {
   switch e.it {
   | ECon(c) => string_of_constant(c) |> consider_context(ctx)
-  | Ref(x) => x.it |> consider_context(ctx)
+  | Ref(x) => string_of_identifier(x.it) |> consider_context(ctx)
   | Set(x, e) =>
-    string_of_expr_set(x->unann, string_of_expr(Expr(false), e)) |> consider_context(ctx)
+    string_of_expr_set(
+      x->unann->string_of_identifier,
+      string_of_expr(Expr(false), e),
+    ) |> consider_context(ctx)
   | Lam(xs, b) =>
     let b = {
       let (ts, e) = b
@@ -139,7 +154,7 @@ let rec string_of_expr = (ctx: js_ctx, e: annotated<expression>): string => {
       | _ => "..."
       }
     }
-    string_of_expr_lam(xs->map(unann), b) |> consider_context(ctx)
+    string_of_expr_lam(xs->map(unann)->map(string_of_identifier), b) |> consider_context(ctx)
   | AppPrm(p, es) =>
     let o = string_of_expr_app_prm(p, es->map(string_of_expr(Expr(true)))) |> maybe_wrap(ctx)
     if p != OError {
@@ -177,7 +192,12 @@ let rec string_of_expr = (ctx: js_ctx, e: annotated<expression>): string => {
 and string_of_def = (d: annotated<definition>): string => {
   switch d.it {
   | Var(x, e) => string_of_def_var(x, string_of_expr(Expr(false), e))
-  | Fun(f, xs, b) => string_of_def_fun(f->unann, xs->map(unann), string_of_block(Return, b))
+  | Fun(f, xs, b) =>
+    string_of_def_fun(
+      f->unann->string_of_identifier,
+      xs->map(unann)->map(string_of_identifier),
+      string_of_block(Return, b),
+    )
   // | For(x, e_from, e_to, b) =>
   //   string_of_def_for(
   //     x,
@@ -189,7 +209,7 @@ and string_of_def = (d: annotated<definition>): string => {
 }
 and string_of_xe = xe => {
   let (x, e) = xe
-  (x.it, string_of_expr(Expr(false), e))
+  (string_of_identifier(x.it), string_of_expr(Expr(false), e))
 }
 and string_of_eb = (ctx, eb) => {
   let (e, b) = eb
