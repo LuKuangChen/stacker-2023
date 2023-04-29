@@ -1,15 +1,75 @@
 # Stacker
 
-## Known Issues
+This tool presents how programs work.
+It focuses on presenting on the (call) stack, environments, and the heap.
+Such program must be written in SMoL, an educational language that
+support many language features commonly found in modern programming languages.
+SMoL has *three* surface syntaxes: Python-like, JavaScript-like, and Racket-like.
+Although programs must be written in the Racket-like syntax, this tool is able to *present* programs in two other, possibly more favorable syntaxes.
+
+## What is SMoL?
+
+SMoL = *Standard Model of Languages* It includes (mutable) variables, mutable vectors (i.e., arrays), and first-class function.
+
+### Supported grammar
+
+```
+t ::= d
+    | e
+d ::= (defvar x e)
+    | (deffun (f x ...) body)
+e ::= c
+    | x
+    | (lambda (x ...) body)
+    | (let ([x e] ...) body)
+    | (begin e ... e)
+    | (set! x e)
+    | (if e e e)
+    | (cond [e body] ... [else body])
+    | (cond [e body] ...)
+    | (e e ...)
+body    ::= t ... e
+program ::= t ...
+```
+
+### Supported primitive operators
+
+| **Operators**         | **Meaning**                              |
+| --------------------- | ---------------------------------------- |
+| `+` `-` `*` `/`       | Arithmetic Operators                     |
+| `=` `<` `>` `<=` `>=` | Number comparison                        |
+| `++`                  | String concatenation                     |
+| `vec`                 | Create a (mutable) vector (a.k.a. array) |
+| `vec-ref`             | Look up a vector element                 |
+| `vec-set!`            | Replace a vector element                 |
+| `vec-len`             | Get the length of a vector               |
+| `eq?`                 | Pointer equality                         |
+
+
+## Restrictions
+
+### Potential Problems: restrictions that might exist, but we are not sure
+
+Programs that can be presented in Python-like syntax might or might nor have a Python-equivalent semantics.
+
+Programs that can be presented in JavaScript-like syntax might or might nor have a JavaScript-equivalent semantics.
+
+### To-do: restrictions that we plan to remove
 
 Parsing errors are not reported.
 
-To support Python-like syntax
-
 Keyboard shortcut is unstable.
 
-ReScript-React registers tons of unused event handlers to the root element. This might
-raise accessibility problem.
+ReScript-React registers tons of unused event handlers to the root element.
+This might raise accessibility problem.
+
+Add list-processing higher-order functions.
+
+### Know Issues: restrictions that we don't plan to (or simply can't) resolve
+
+Some programs can't be presented in Python-syntax. This restriction is mostly caused by the facts that Python have no let expressions, that Python's lambda only allow exactly one expression as its body, and that Python use the same syntax for variable definition and variable mutation.
+
+JavaScript similarly has a restriction -- there is no let expression in JavaScript.
 
 ## Development
 
