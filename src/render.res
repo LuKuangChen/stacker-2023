@@ -328,7 +328,7 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
             | Some(v) => string_of_value(v)
             }
             <span key className="bind">
-              {blank(x)}
+              {blank(x->tr_expr)}
               <span ariaHidden={true}> {React.string(" ↦ ")} </span>
               <span className="sr-only"> {React.string("to")} </span>
               {blank(v)}
@@ -558,7 +558,7 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
 
     | Setting(x, v) =>
       <p className="now box replacing">
-        {label("Replacing a variable's value ")}
+        {label("Rebinding a variable ")}
         <br />
         {blank(string_of_expr_set(unann(x), string_of_value(v))->tr_expr)}
         <br />
