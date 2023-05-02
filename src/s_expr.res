@@ -1,5 +1,15 @@
 open Utilities
 
+/*
+Okay, I find this file gets really confusing. I am using exceptions for two purposes:
+
+1. to backtrack
+2. to raise real parsing error
+
+Let's leave the first kind of exceptions as their own kind, and group all second kind
+exception in one data type.
+*/
+
 type atom =
   | Str(string)
   | Sym(string)
@@ -7,6 +17,12 @@ type atom =
 type bracket =
   | Round
   | Square
+let stringOfBracket = bracket => {
+  switch bracket {
+  | Square => "square"
+  | Round => "round"
+  }
+}
 
 type rec sexpr =
   | Atom(atom)
@@ -38,10 +54,24 @@ let case_source = (source): option<(string, source)> => {
   }
 }
 
-exception WantSExprFoundEOF
-exception WantStringFoundEOF
-exception WantEscapableCharFound(string)
-exception WantSExprFoundRP(bracket, source)
+type parseError =
+  | WantListFoundEOF
+  | WantStringFoundEOF
+  | WantEscapableCharFound(string)
+  | MismatchedBracket(bracket, bracket)
+exception ParseError(parseError)
+
+let stringOfParseError: parseError => string = err => {
+  switch err {
+  | WantListFoundEOF => "Reached the end of the file while processing a list."
+  | WantStringFoundEOF => "Reached the end of the file while processing a string."
+  | WantEscapableCharFound(string) => `Found an unexpected escape sequence (\\${string}).`
+  | MismatchedBracket(start, end) =>
+    `Found a closing ${stringOfBracket(end)} bracket but this list starts with a ${stringOfBracket(
+        start,
+      )} bracket.`
+  }
+}
 
 let rec stringOfList = xs => {
   switch xs {
@@ -78,7 +108,7 @@ let parse_sym = (start, first_chr, src: source): (annotated<sexpr>, source) => {
 let parse_str = (start: srcloc, src: source): (annotated<sexpr>, source) => {
   let rec loop = (cs, src): (annotated<sexpr>, source) => {
     switch case_source(src) {
-    | None => raise(WantStringFoundEOF)
+    | None => raise(ParseError(WantStringFoundEOF))
     | Some((`"`, src)) => {
         let e = Atom(Str(stringOfList(Belt.List.reverse(cs))))
         (annotate(e, start, src.srcloc), src)
@@ -94,7 +124,7 @@ let parse_str = (start: srcloc, src: source): (annotated<sexpr>, source) => {
   }
   and escapting = (cs, src): (annotated<sexpr>, source) => {
     switch case_source(src) {
-    | None => raise(WantStringFoundEOF)
+    | None => raise(ParseError(WantStringFoundEOF))
     | Some((chr, src)) =>
       switch chr {
       | `"` => loop(list{`"`, ...cs}, src)
@@ -105,7 +135,7 @@ let parse_str = (start: srcloc, src: source): (annotated<sexpr>, source) => {
         if chr == "\\" {
           loop(list{"\\", ...cs}, src)
         } else {
-          raise(WantEscapableCharFound(chr))
+          raise(ParseError(WantEscapableCharFound(chr)))
         }
       }
     }
@@ -113,11 +143,12 @@ let parse_str = (start: srcloc, src: source): (annotated<sexpr>, source) => {
   loop(list{}, src)
 }
 
-exception MismatchedBracket(bracket, bracket)
+exception EOF
+exception WantSExprFoundRP(bracket, source)
 let rec parse_one = (src: source): (annotated<sexpr>, source) => {
   let start = src.srcloc
   switch case_source(src) {
-  | None => raise(WantSExprFoundEOF)
+  | None => raise(EOF)
   | Some(("(", src)) => start_parse_list(Round, start, src)
   | Some(("[", src)) => start_parse_list(Square, start, src)
   | Some((")", src)) => raise(WantSExprFoundRP(Round, src))
@@ -136,12 +167,13 @@ and start_parse_list = (bracket1, start, src): (annotated<sexpr>, source) => {
   let rec parse_list = (elms, src): (annotated<sexpr>, source) => {
     switch parse_one(src) {
     | (elm, src) => parse_list(list{elm, ...elms}, src)
+    | exception EOF => raise(ParseError(WantListFoundEOF))
     | exception WantSExprFoundRP(bracket2, src) =>
       if bracket1 == bracket2 {
         let e = List(bracket1, Belt.List.reverse(elms))
         (annotate(e, start, src.srcloc), src)
       } else {
-        raise(MismatchedBracket(bracket1, bracket2))
+        raise(ParseError(MismatchedBracket(bracket1, bracket2)))
       }
     }
   }
@@ -152,7 +184,7 @@ let parse_many = (src: source) => {
   let rec loop = (elms, src) => {
     switch parse_one(src) {
     | (elm, src) => loop(list{elm, ...elms}, src)
-    | exception WantSExprFoundEOF => Belt.List.reverse(elms)
+    | exception EOF => Belt.List.reverse(elms)
     }
   }
   loop(list{}, src)

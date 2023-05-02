@@ -48,9 +48,14 @@ type randomSeedConfig = {isSet: bool, randomSeed: string}
 
 @react.component
 let make = () => {
-  let (program, setProgram) = React.useState(_ => "")
+  let (program, rawSetProgram) = React.useState(_ => "")
+  let (parseFeedback, setParseFeedback) = React.useState(_ => "")
+  let setProgram = (setter: string => string) => {
+    setParseFeedback(_ => "")
+    rawSetProgram(setter)
+  }
   let (nNext, setNNext) = React.useState(_ => 0)
-  let (syntax, setsyntax) = React.useState(_ => {
+  let (syntax, setSyntax) = React.useState(_ => {
     if syntaxAtURL == "" {
       "Lisp"
     } else {
@@ -64,17 +69,26 @@ let make = () => {
       {isSet: true, randomSeed: randomSeedAtURL}
     }
   })
+  let parseSMoL = (program: string) => {
+    program->S_expr.stringToSource->S_expr.parse_many->Parse_smol.terms_of_sexprs
+  }
   let loadProgram = program => {
-    let s: Smol.state = Smol.load(
-      program->S_expr.stringToSource->S_expr.parse_many->Parse_smol.terms_of_sexprs,
-      randomSeed.randomSeed,
-    )
-    Running({
-      prevs: list{},
-      nexts: list{},
-      now: Render.render(parseSyntax(syntax), s),
-      latestState: s,
-    })
+    switch parseSMoL(program) {
+    | exception S_expr.ParseError(err) => {
+        setParseFeedback(_ => S_expr.stringOfParseError(err))
+        Editing
+      }
+
+    | program => {
+        let s: Smol.state = Smol.load(program, randomSeed.randomSeed)
+        Running({
+          prevs: list{},
+          nexts: list{},
+          now: Render.render(parseSyntax(syntax), s),
+          latestState: s,
+        })
+      }
+    }
   }
   let forward = s => {
     switch s {
@@ -233,6 +247,11 @@ let make = () => {
       }}
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
         <CodeEditor
+          syntax={if readOnly {
+            parseSyntax(syntax)
+          } else {
+            Lisp
+          }}
           program={if readOnly {
             program->Render.adjust_syntax(parseSyntax(syntax)).tr_top_level
           } else {
@@ -242,6 +261,7 @@ let make = () => {
           setProgram
         />
       </div>
+      <span className="parse-feedback"> {text(parseFeedback)} </span>
       <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
         <summary> {text("Advanced configurations.")} </summary>
         <label>
@@ -249,7 +269,7 @@ let make = () => {
           {
             let onChange = evt => {
               let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-              setsyntax(_ => newValue)
+              setSyntax(_ => newValue)
             }
             <select onChange disabled={readOnly}>
               <option selected={"Lisp" == syntax} value="Lisp"> {text("Lisp-like")} </option>

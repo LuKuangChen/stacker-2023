@@ -11,6 +11,17 @@ let parserWithMetadata = parser.configure({
       LineComment: t.lineComment,
       "( )": t.paren,
       "[ ]": t.paren,
+      "#t": t.keyword,
+      "#f": t.keyword,
+      "deffun": t.keyword,
+      "defvar": t.keyword,
+      "set!": t.keyword,
+      "if": t.keyword,
+      "let": t.keyword,
+      "cond": t.keyword,
+      "else": t.keyword,
+      "begin": t.keyword,
+      "lambda": t.keyword,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit

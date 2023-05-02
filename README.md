@@ -86,14 +86,14 @@ This will install dependency packages.
 ### For every development
 
 ```sh
-npm run res:start
+npm run rescript
 ```
 
 This will start a ReScript program that keeps `.res` programs and `.js` programs in sync.
 
 
 ```sh
-npm run wpk:start
+npm run webpack
 ```
 
 This will run a Webpack program that keeps `.css`, `.js`, etc. and the final webpage in sync.

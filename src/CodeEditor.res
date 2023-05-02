@@ -1,11 +1,21 @@
 module SMoLCodeMirror = {
-  @react.component @module("./my-code-mirror")
+  @react.component @module("./my-code-mirror_smol")
+  external make: (~value: string, ~readOnly: bool, ~onChange: string => unit) => React.element =
+    "default"
+}
+module JavaScriptCodeMirror = {
+  @react.component @module("./my-code-mirror_javascript")
+  external make: (~value: string, ~readOnly: bool, ~onChange: string => unit) => React.element =
+    "default"
+}
+module PythonCodeMirror = {
+  @react.component @module("./my-code-mirror_python")
   external make: (~value: string, ~readOnly: bool, ~onChange: string => unit) => React.element =
     "default"
 }
 
 @react.component
-let make = (~program, ~readOnly, ~setProgram) => {
+let make = (~syntax, ~program, ~readOnly, ~setProgram) => {
   // let output = switch S_expr.parse_many(program |> S_expr.stringToSource) {
   // | parsed => S_expr.stringOfManySexprs(parsed)
   // | exception S_expr.WantSExprFoundEOF => "Unexpected EOF while looking for an S-expression."
@@ -17,7 +27,11 @@ let make = (~program, ~readOnly, ~setProgram) => {
   let onChange = s => {
     setProgram(_ => s)
   }
-  <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  switch syntax {
+  | Render.Lisp => <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  | JavaScript => <JavaScriptCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  | Python => <PythonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  }
   // let onChange = evt => {
   //   let s = ReactEvent.Form.currentTarget(evt)["value"]
   //   setProgram(_ => s)

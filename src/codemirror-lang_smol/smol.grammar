@@ -1,5 +1,15 @@
 @top Program { expression* }
 expression {
+  kw<"deffun"> |
+  kw<"defvar"> |
+  kw<"set!"> |
+  kw<"if"> |
+  kw<"let"> |
+  kw<"cond"> |
+  kw<"else"> |
+  kw<"begin"> |
+  kw<"lambda"> |
+  kw<"set!"> |
   Identifier |
   String |
   Boolean |
@@ -7,7 +17,7 @@ expression {
   Application { "[" expression* "]" }
 }
 @tokens {
-  Identifier { $[a-zA-Z_0-9]+ }
+  Identifier { $[!?a-zA-Z0-9_-]+ }
 
   String { '"' (!["\\] | "\\" _)* '"' }
 
@@ -20,6 +30,11 @@ expression {
   "(" ")"
 
   "[" "]"
+
+  "#t"
+
+  "#f"
 }
+kw<term> { @specialize[@name={term}]<Identifier, term> }
 @skip { space | LineComment }
 @detectDelim
