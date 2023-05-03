@@ -220,17 +220,28 @@ let string_of_top_level = ts => {
   ts->map(string_of_term) |> String.concat("\n")
 }
 
+let as_many_then_one = es => {
+  switch es {
+  | list{e1, ...rest} =>
+    switch reverse(rest) {
+    | list{} => (list{}, e1)
+    | list{x, ...xs} => (list{e1, ...reverse(xs)}, x)
+    }
+  | _ => raise(Impossible)
+  }
+}
+
 let smol_to_js: (js_ctx, string) => string = (ctx, smol_program) => {
   let ts = smol_program->Parse_smol.parse_terms
   switch (ctx, ts) {
   | (Term, list{t}) => string_of_term(t)
   | (Term, _) => "...expecting exactly one term..."
-  | (Expr(_), list{t}) => string_of_expr(ctx, t |> Parse_smol.as_expr)
+  | (Expr(_), list{t}) => string_of_expr(ctx, t |> Parse_smol.as_expr(""))
   | (Expr(_), _) => "...expecting exactly one expression..."
   | (Stat, ts) => string_of_top_level(ts)
   | (Return, ts) => {
-      let (ts, tz) = Parse_smol.as_one_or_more_tail(ts)
-      let e = tz |> Parse_smol.as_expr
+      let (ts, tz) = as_many_then_one(ts)
+      let e = tz |> Parse_smol.as_expr("")
       string_of_block(Return, (ts, e))
     }
   }

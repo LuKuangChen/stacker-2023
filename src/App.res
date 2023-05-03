@@ -42,8 +42,6 @@ type state =
   | Editing
   | Running(running_state)
 
-exception Impossible
-
 type randomSeedConfig = {isSet: bool, randomSeed: string}
 
 @react.component
@@ -76,6 +74,11 @@ let make = () => {
     switch parseSMoL(program) {
     | exception S_expr.ParseError(err) => {
         setParseFeedback(_ => S_expr.stringOfParseError(err))
+        Editing
+      }
+
+    | exception Parse_smol.ParseError(err) => {
+        setParseFeedback(_ => Parse_smol.stringOfParseError(err))
         Editing
       }
 
@@ -245,6 +248,7 @@ let make = () => {
       } else {
         React.array([])
       }}
+      <span className="parse-feedback"> {text(parseFeedback)} </span>
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
         <CodeEditor
           syntax={if readOnly {
@@ -261,7 +265,6 @@ let make = () => {
           setProgram
         />
       </div>
-      <span className="parse-feedback"> {text(parseFeedback)} </span>
       <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
         <summary> {text("Advanced configurations.")} </summary>
         <label>
