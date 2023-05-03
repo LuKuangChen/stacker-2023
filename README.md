@@ -46,17 +46,17 @@ program ::= t ...
 | `eq?`                 | Pointer equality                         |
 
 
-## Restrictions
+## Limitations
 
-### Potential Problems: restrictions that might exist, but we are not sure
+### Potential Problems: limitations that might exist, but we are not sure
 
 Programs that can be presented in Python-like syntax might or might nor have a Python-equivalent semantics.
 
 Programs that can be presented in JavaScript-like syntax might or might nor have a JavaScript-equivalent semantics.
 
-### To-do: restrictions that we plan to remove
+### To-do: limitations that we plan to remove
 
-Parsing errors are not reported.
+Parsing errors are not reported with source code locations.
 
 Keyboard shortcut is unstable.
 
@@ -65,7 +65,7 @@ This might raise accessibility problem.
 
 Add list-processing higher-order functions.
 
-### Know Issues: restrictions that we don't plan to (or simply can't) resolve
+### Know Issues: limitations that we don't plan to (or simply can't) resolve
 
 Some programs can't be presented in Python-syntax. This restriction is mostly caused by the facts that Python have no let expressions, that Python's lambda only allow exactly one expression as its body.
 
