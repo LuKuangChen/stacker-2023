@@ -230,6 +230,12 @@ and string_of_term = t => {
 }
 
 let string_of_top_level = ts => {
+  let string_of_term = t => {
+    switch t {
+    | Exp(e) => `print(${string_of_expr(Expr(false), e)})`
+    | Def(d) => string_of_def(d)
+    }
+  }
   ts->map(string_of_term) |> String.concat("\n")
 }
 
