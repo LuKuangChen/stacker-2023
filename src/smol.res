@@ -186,18 +186,18 @@ let makeTopLevel = (env, xs): environment => {
 }
 
 let extend = (env, xs): environment => {
-  if Array.length(xs) == 0 {
-    env
-  } else {
-    let id = newEnvId()
-    let frm = {
-      id: Int.toString(id),
-      content: xs |> Js.Array.map(x => (x, ref(None))),
-    }
-    let env = list{frm, ...env}
-    allEnvs := list{env, ...allEnvs.contents}
-    env
+  // if Array.length(xs) == 0 {
+  //   env
+  // } else {
+  let id = newEnvId()
+  let frm = {
+    id: Int.toString(id),
+    content: xs |> Js.Array.map(x => (x, ref(None))),
   }
+  let env = list{frm, ...env}
+  allEnvs := list{env, ...allEnvs.contents}
+  env
+  // }
 }
 
 let ifNone = (thunk: unit => 'X, o: option<'X>): 'X => {
