@@ -30,7 +30,7 @@ let string_of_constant = c => {
 }
 
 let string_of_list = ss => {
-  "(" ++ String.concat(" ", ss) ++ ")"
+  "(" ++ String.concat(", ", ss) ++ ")"
 }
 
 let string_of_identifier = x => {
