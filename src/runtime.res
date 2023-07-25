@@ -1,5 +1,6 @@
-open Utilities
+open Stacker_utilities
 open Belt
+open SExpression
 
 @module("./random") external make_random: string => array<unit => float> = "make_random"
 
@@ -21,54 +22,7 @@ let makeRandomInt = seed => {
 
 let randomInt = ref(makeRandomInt(Js.Math.random()->Float.toString))
 
-type primitive =
-  | Add
-  | Sub
-  | Mul
-  | Div
-  | Lt
-  | Eq
-  | Gt
-  | Le
-  | Ge
-  | Ne
-  | VecNew
-  | VecRef
-  | VecSet
-  | VecLen
-  | Eqv
-  // to avoid the complain that `Error` is shadowing something
-  | OError
-type constant =
-  | Uni
-  | Num(float)
-  | Lgc(bool)
-  | Str(string)
-
-type symbol = string
-type rec expression =
-  | ECon(constant)
-  // Embedding primitive operator is necessary when we desugar for-loops
-  | Ref(annotated<symbol>)
-  | Set(annotated<symbol>, annotated<expression>)
-  | Lam(list<annotated<symbol>>, block)
-  | Let(list<(annotated<symbol>, annotated<expression>)>, block)
-  | AppPrm(primitive, list<annotated<expression>>)
-  | App(annotated<expression>, list<annotated<expression>>)
-  | Bgn(list<annotated<expression>>, annotated<expression>)
-  | If(annotated<expression>, annotated<expression>, annotated<expression>)
-  | Cnd(list<(annotated<expression>, block)>, option<block>)
-// | Whl(annotated<expression>, block)
-and block = (list<term>, annotated<expression>)
-and definition =
-  | Var(annotated<symbol>, annotated<expression>)
-  | Fun(annotated<symbol>, list<annotated<symbol>>, block)
-// | For(annotated<symbol>, annotated<expression>, annotated<expression>, block)
-and term =
-  | Def(annotated<definition>)
-  | Exp(annotated<expression>)
-and program = list<term>
-and environmentFrame = {
+type rec environmentFrame = {
   id: string,
   content: array<(symbol, ref<option<value>>)>,
 }
@@ -107,7 +61,7 @@ let initialEnv: environment = list{
       ("vec-ref", ref(Some((VFun(Prm(VecRef)): value)))),
       ("vec-set!", ref(Some((VFun(Prm(VecSet)): value)))),
       ("vec-len", ref(Some((VFun(Prm(VecLen)): value)))),
-      ("error", ref(Some((VFun(Prm(OError)): value)))),
+      ("error", ref(Some((VFun(Prm(Error)): value)))),
     ],
   },
 }
@@ -397,7 +351,10 @@ let arityOf = p =>
   | VecSet => Exactly(3)
   | VecLen => Exactly(1)
   | Eqv => AtLeast(2)
-  | OError => Exactly(1)
+  | Error => Exactly(1)
+  | PairNew => Exactly(2)
+  | PairRefLeft | PairRefRight => Exactly(1)
+  | PairSetLeft | PairSetRight => Exactly(2)
   }
 
 exception Impossible(string)
@@ -448,7 +405,7 @@ and delta = (p, vs) =>
       stt => Continuing(Reducing(VecSetting(v_vec, v_ind, v_val), stt))
     }
 
-  | (OError, list{v}) => {
+  | (Error, list{v}) => {
       let v = asStr(v)
       _stt => Terminated(Err(UserRaised(v)))
     }

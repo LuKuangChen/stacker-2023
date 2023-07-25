@@ -1,5 +1,6 @@
 open Smol
-open Utilities
+open Runtime
+open Stacker_utilities
 open Belt
 open List
 
@@ -33,12 +34,17 @@ let string_of_prm = (o: primitive) => {
   | VecRef => "vec-ref"
   | VecSet => "vec-set!"
   | VecLen => "vec-len"
+  | PairNew => "pair"
+  | PairRefLeft => "left"
+  | PairRefRight => "right"
+  | PairSetLeft => "set-left!"
+  | PairSetRight => "set-right!"
   | Eqv => "eq?"
-  | OError => "error"
+  | Error => "error"
   }
 }
 
-let string_of_function = (f: Smol.function) => {
+let string_of_function = (f: Runtime.function) => {
   switch f {
   | Udf(id, _name, _ann, _xs, _body, _env) => {
       let id = id->Int.toString
