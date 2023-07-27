@@ -66,15 +66,14 @@ let stringify_context = (stringify: stringifier) => {
     dummy_ann(Ref(dummy_ann(string_of_value(v))))
   }
 
-  let term_of_value = (v: value) : term => {
+  let term_of_value = (v: value): term => {
     Exp(expr_of_value(v))
   }
 
   let interp_program_base = (base: programBase, any: annotated<expression>): program => {
     let (vs, redex, ts) = base
     let redex: term = switch redex {
-    | Def(x) =>
-      Def(dummy_ann(Var(x, any)))
+    | Def(x) => Def(dummy_ann(Var(x, any)))
     | Exp => Exp(any)
     }
     list{...vs->List.map(term_of_value), redex, ...ts}
@@ -137,7 +136,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               {blank(string_of_expr(dummy_ann(Ref(dummy_ann(x)))))}
               <span ariaHidden={true}> {React.string(" ↦ ")} </span>
               <span className="sr-only"> {React.string("to")} </span>
-              {blank(v.contents -> Option.map(string_of_value) -> Option.getWithDefault("💣"))}
+              {blank(v.contents->Option.map(string_of_value)->Option.getWithDefault("💣"))}
             </span>
           }),
         )}
@@ -329,7 +328,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       <p className="now box calling">
         {React.string("Calling ")}
         {blank(
-          dummy_ann((App(expr_of_value(f), vs->List.map(expr_of_value)): expression))->string_of_expr,
+          dummy_ann(
+            (App(expr_of_value(f), vs->List.map(expr_of_value)): expression),
+          )->string_of_expr,
         )}
         <br />
         {React.string("in context ")}
@@ -410,7 +411,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         | {topping: list{}, base: {ctx, env}} => (
             blank(ctx->string_of_program_context),
             env->show_env,
-            <> </>,
+            <p> {React.string("(No stack frames)")} </p>,
           )
         | {topping: list{{ctx, env}, ...topping}, base} => (
             blank(ctx->string_of_body_context),
