@@ -20,7 +20,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@lukuangchen/smol-translator": "github:brownplt/smol-translator",
+    "@lukuangchen/s-expression": "^2.0.3",
+    "@lukuangchen/smol-translator": "file:../smol-translator",
     "@rescript/react": "^0.11.0",
     "@uiw/react-codemirror": "^4.19.9",
     "react": "^18.2.0",

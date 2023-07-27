@@ -4,11 +4,11 @@ This file convert smol states to react elements.
 
 */
 
-open Smol
-open Utilities
 open Belt
 open List
-open Stringify_smol
+open SMoL
+open SExpression
+open Runtime
 
 type syntax_kind =
   | Lisp
@@ -17,57 +17,112 @@ type syntax_kind =
 
 let id = x => x
 
-type translator = {
-  tr_term: string => string,
-  tr_expr: string => string,
-  tr_top_level: string => string,
-  tr_fun_body: string => string,
+let blank = s => {
+  <code className="blank"> {React.string(s)} </code>
 }
 
-let adjust_syntax = sk => {
+let adjust_syntax = (sk): stringifier => {
   switch sk {
-  | Lisp => {
-      tr_term: id,
-      tr_expr: id,
-      tr_top_level: id,
-      tr_fun_body: id,
-    }
-  | JavaScript => {
-      tr_term: Smol_to_js.smol_to_js(Term),
-      tr_expr: Smol_to_js.smol_to_js(Expr(false)),
-      tr_top_level: Smol_to_js.smol_to_js(Stat),
-      tr_fun_body: Smol_to_js.smol_to_js(Return),
-    }
-  | Python => {
-      tr_term: Smol_to_py.smol_to_py(Term),
-      tr_expr: Smol_to_py.smol_to_py(Expr(false)),
-      tr_top_level: Smol_to_py.smol_to_py(Stat),
-      tr_fun_body: Smol_to_py.smol_to_py(Return),
-    }
+  | Lisp => stringify
+  | JavaScript => stringifyAsJS
+  | Python => stringifyAsPY
   }
 }
 
-let label = React.string
+let stringify_context = (stringify: stringifier) => {
+  let {
+    string_of_result,
+    string_of_expr,
+    string_of_def,
+    string_of_block,
+    string_of_program,
+  } = stringify
+
+  let interp_ctx = (ctx, any: annotated<expression>): annotated<expression> =>
+    dummy_ann(
+      switch ctx {
+      | Set1(x, ()) => Set(x, any)
+      | App1((), es) => App(any, es)
+      | App2(v, vs, (), es) => App(observe(v), list{...vs->List.map(observe), any, ...es})
+      | Let1(xvs, (x, ()), xes, block) =>
+        Let(list{...xvs->List.map(((x, v)) => (x, observe(v))), (x, any), ...xes}, block)
+      | If1((), e_thn, e_els) => If(any, e_thn, e_els)
+      | Cnd1((), block, ebs, ob) => Cnd(list{(any, block), ...ebs}, ob)
+      | Bgn1((), es, e) => Bgn(list{any, ...es}, e)
+      },
+    )
+
+  let interp_body_base = (base: bodyBase, any: annotated<expression>): block => {
+    switch base {
+    | BdyDef(x, (), (ts, e)) => (list{Def(dummy_ann(Var(x, any))), ...ts}, e)
+    | BdyExp((), (ts, e)) => (list{Exp(any), ...ts}, e)
+    | BdyRet => (list{}, any)
+    }
+  }
+
+  let string_of_value = v => string_of_result(result_of_value(v))
+
+  let expr_of_value = (v: value): annotated<expression> => {
+    dummy_ann(Ref(dummy_ann(string_of_value(v))))
+  }
+
+  let term_of_value = (v: value) : term => {
+    Exp(expr_of_value(v))
+  }
+
+  let interp_program_base = (base: programBase, any: annotated<expression>): program => {
+    let (vs, redex, ts) = base
+    let redex: term = switch redex {
+    | Def(x) =>
+      Def(dummy_ann(Var(x, any)))
+    | Exp => Exp(any)
+    }
+    list{...vs->List.map(term_of_value), redex, ...ts}
+  }
+
+  let block_of_body_context = (any: annotated<expression>, ctx: pile<contextFrame, bodyBase>) => {
+    let embed_in_topping: annotated<expression> => annotated<expression> = any =>
+      List.reduce(ctx.topping->List.map(interp_ctx), any, (any, embed) => embed(any))
+    let embed_in_base: annotated<expression> => block = interp_body_base(ctx.base)
+    any |> embed_in_topping |> embed_in_base
+  }
+
+  let block_of_program_context = (
+    any: annotated<expression>,
+    ctx: pile<contextFrame, programBase>,
+  ) => {
+    let embed_in_topping: annotated<expression> => annotated<expression> = any =>
+      List.reduce(ctx.topping->List.map(interp_ctx), any, (any, embed) => embed(any))
+    let embed_in_base: annotated<expression> => program = interp_program_base(ctx.base)
+    any |> embed_in_topping |> embed_in_base
+  }
+
+  let placeholder = dummy_ann(Ref(dummy_ann("❓")))
+
+  let string_of_body_context = ctx => string_of_block(block_of_body_context(placeholder, ctx))
+  let string_of_program_context = ctx =>
+    string_of_program(block_of_program_context(placeholder, ctx))
+  let string_of_fun = (f, xs, body) => {
+    switch f {
+    | None => string_of_expr(dummy_ann(Lam(xs, body)))
+    | Some(f) => string_of_def(dummy_ann((Fun(dummy_ann(f), xs, body): definition)))
+    }
+  }
+
+  (expr_of_value, string_of_value, string_of_fun, string_of_body_context, string_of_program_context)
+}
 
 exception Impossible(string)
-let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
-  let {tr_term, tr_expr, tr_fun_body, tr_top_level} = adjust_syntax(sk)
-
-  let show_value = e => {
-    blank(string_of_value(e) |> tr_expr)
-  }
-
-  let show_ctx = ctx => {
-    let ctx = ctx->map(string_of_ctxFrame)
-    let ctx = reduce(ctx, "❓", (sofar, f) => f(sofar))
-    blank(ctx |> tr_fun_body)
-  }
-
-  let show_top_level_ctx = ctx => {
-    let ctx = ctx->map(string_of_ctxFrame)
-    let ctx = reduce(ctx, "❓", (sofar, f) => f(sofar))
-    blank(ctx |> tr_top_level)
-  }
+let render: (syntax_kind, state) => React.element = (sk, s) => {
+  let stringify = adjust_syntax(sk)
+  let {string_of_expr, string_of_block} = stringify
+  let (
+    expr_of_value,
+    string_of_value,
+    string_of_fun,
+    string_of_body_context,
+    string_of_program_context,
+  ) = stringify_context(stringify)
 
   let show_envFrm = (frm: environmentFrame) => {
     if Array.length(frm.content) == 0 {
@@ -78,16 +133,11 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
           Array.mapWithIndex(frm.content, (key, xv) => {
             let key = Int.toString(key)
             let (x, v) = xv
-            let ov = v.contents
-            let v = switch ov {
-            | None => "💣"
-            | Some(v) => string_of_value(v)
-            }
             <span key className="bind">
-              {blank(x->tr_expr)}
+              {blank(string_of_expr(dummy_ann(Ref(dummy_ann(x)))))}
               <span ariaHidden={true}> {React.string(" ↦ ")} </span>
               <span className="sr-only"> {React.string("to")} </span>
-              {blank(v)}
+              {blank(v.contents -> Option.map(string_of_value) -> Option.getWithDefault("💣"))}
             </span>
           }),
         )}
@@ -111,10 +161,10 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
           <span>
             {blank(`@${id}`)}
             <br />
-            {label("binds ")}
+            {React.string("binds ")}
             {show_envFrm(frm)}
             <br />
-            {label("extending ")}
+            {React.string("extending ")}
             {show_env(rest)}
           </span>
         </li>
@@ -124,10 +174,10 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
 
   let show_all_envs = () => {
     if allEnvs.contents === list{} {
-      <p> {label("(No environments)")} </p>
+      <p> {React.string("(No environments)")} </p>
     } else {
       <ol className="box-list" ariaLabel="a list of all environments">
-        {React.array(allEnvs.contents->reverse->mapWithIndex(show_one_env)->List.toArray)}
+        {React.array(allEnvs.contents->reverse->List.mapWithIndex(show_one_env)->List.toArray)}
       </ol>
     }
   }
@@ -136,18 +186,12 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
     let key = Int.toString(key)
     switch val {
     | VFun(Udf(id, name, ann, xs, body, env)) => {
-        let string_of_udf = (name, xs, body) => {
-          switch name.contents {
-          | None => string_of_expr_lam(xs, body)
-          | Some(f) => string_of_def_fun(f, xs, body)
-          }
-        }
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
         <li key className="fun box">
           {blank(`@${id}`)}
-          {label(", a function")}
+          {React.string(", a function")}
           <br />
           <details>
             <summary>
@@ -156,17 +200,9 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
               {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
               <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
             </summary>
-            <p>
-              {blank(
-                string_of_udf(
-                  name,
-                  xs->List.fromArray->map(unann),
-                  string_of_block(body),
-                ) |> tr_term,
-              )}
-            </p>
+            <p> {blank(string_of_fun(name.contents, xs |> List.fromArray, body))} </p>
           </details>
-          {label("with environment ")}
+          {React.string("with environment ")}
           {show_env(env)}
         </li>
       }
@@ -175,9 +211,9 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
         let id = id->Int.toString
         <li key className="vec box">
           {blank(`@${id}`)}
-          {label(", a vector")}
+          {React.string(", a vector")}
           <br />
-          {label("with contents")}
+          {React.string("with contents")}
           {React.array(
             vs
             ->Array.map(string_of_value)
@@ -198,10 +234,10 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
 
   let show_all_havs = () => {
     if allHavs.contents === list{} {
-      <p> {label("(No heap-allocated values)")} </p>
+      <p> {React.string("(No heap-allocated values)")} </p>
     } else {
       <ol className="box-list" ariaLabel="a list of all heap-allocated values">
-        {React.array(allHavs.contents->reverse->mapWithIndex(show_one_hav)->List.toArray)}
+        {React.array(allHavs.contents->reverse->List.mapWithIndex(show_one_hav)->List.toArray)}
       </ol>
     }
   }
@@ -221,47 +257,53 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
     }
   }
 
-  let show_stackFrm = (key: int, frm: stackFrame) => {
-    let (ctx, env) = frm
+  let show_body_frame = (key: int, frm: frame<bodyBase>) => {
+    let {ctx, env} = frm
     <li key={Int.toString(key)} className="stack-frame box">
-      {label("Waiting for a value")}
+      {React.string("Waiting for a value")}
       <br />
-      {label("in context ")}
-      {if key == 0 {
-        show_top_level_ctx(ctx)
-      } else {
-        show_ctx(ctx)
-      }}
+      {React.string("in context ")}
+      {blank(ctx->string_of_body_context)}
       <br />
-      {label("in environment ")}
+      {React.string("in environment ")}
       {show_env(env)}
     </li>
   }
 
-  let show_stack = frms => {
-    if frms == list{} {
-      <p> {React.string("(No stack frames)")} </p>
-    } else {
-      <ol className="box-list" ariaLabel="stack frames, with the oldest at the top">
-        {React.array(frms->reverse->mapWithIndex(show_stackFrm)->List.toArray)}
-      </ol>
-    }
+  let show_program_frame = (key: int, frm: frame<programBase>) => {
+    let {ctx, env} = frm
+    <li key={Int.toString(key)} className="stack-frame box">
+      {React.string("Waiting for a value")}
+      <br />
+      {React.string("in context ")}
+      {blank(ctx->string_of_program_context)}
+      <br />
+      {React.string("in environment ")}
+      {show_env(env)}
+    </li>
+  }
+
+  let show_stack = (stk: stack) => {
+    <ol className="box-list" ariaLabel="stack frames, with the oldest at the top">
+      {show_program_frame(-1, stk.base)}
+      {React.array(stk.topping->reverse->List.mapWithIndex(show_body_frame)->List.toArray)}
+    </ol>
   }
 
   let show_state = (stack, now, envs, heap) => {
     <article id="stacker-configuration" ariaLabel="the current stacker configuration">
       <section id="stack-and-now">
-        <h1> {label("Stack Frames & The Program Counter")} </h1>
+        <h1> {React.string("Stack Frames & The Program Counter")} </h1>
         {stack}
         <hr />
         {now}
       </section>
       <section id="environments">
-        <h1> {label("Environments")} </h1>
+        <h1> {React.string("Environments")} </h1>
         {envs}
       </section>
       <section id="heap">
-        <h1> {label("Heap-allocated Values")} </h1>
+        <h1> {React.string("Heap-allocated Values")} </h1>
         {heap}
       </section>
     </article>
@@ -270,14 +312,14 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
     switch s {
     | Err(err) =>
       <div className="now box errored">
-        <p> {label("Errored")} </p>
+        <p> {React.string("Errored")} </p>
         {blank(string_of_error(err))}
       </div>
 
     | Tm(vs) =>
       <div className="now box terminated">
-        <p> {label("Terminated")} </p>
-        {blank(String.concat("\n", vs->reverse->map(string_of_value)))}
+        <p> {React.string("Terminated")} </p>
+        {blank(String.concat("\n", vs->List.map(string_of_value)))}
       </div>
     }
   }
@@ -285,112 +327,110 @@ let render: (syntax_kind, Smol.state) => React.element = (sk, s) => {
     switch redex {
     | Applying(f, vs) =>
       <p className="now box calling">
-        {label("Calling ")}
-        {blank(string_of_list(list{string_of_value(f), ...vs->map(string_of_value)})->tr_expr)}
+        {React.string("Calling ")}
+        {blank(
+          dummy_ann((App(expr_of_value(f), vs->List.map(expr_of_value)): expression))->string_of_expr,
+        )}
         <br />
-        {label("in context ")}
+        {React.string("in context ")}
         {ctx}
         <br />
-        {label("in environment ")}
+        {React.string("in environment ")}
         {env}
       </p>
-
-    // | Looping(_e, _b, exp) => {
-    //     let {ctx, env, stk} = stt
-    //     let stk = show_stack(stk)
-    //       <div className="now box looping">
-    //         <p> {label("Met a loop")} </p>
-    //         {blank(string_of_expr(exp)->adjust)}
-    //         <p>
-    //           {label("in context ")}
-    //           {ctx}
-    //         </p>
-    //         <p>
-    //           {label("in environment ")}
-    //           {env}
-    //         </p>
-    //       </div>
-    //   }
 
     | Setting(x, v) =>
       <p className="now box replacing">
-        {label("Rebinding a variable ")}
+        {React.string("Rebinding a variable ")}
         <br />
-        {blank(string_of_expr_set(unann(x), string_of_value(v))->tr_expr)}
+        {blank(Set(x, expr_of_value(v))->dummy_ann->string_of_expr)}
         <br />
-        {label("in context ")}
+        {React.string("in context ")}
         {ctx}
         <br />
-        {label("in environment ")}
+        {React.string("in environment ")}
         {env}
       </p>
 
-    | VecSetting((id, _vs), i, v_val) =>
+    | VecSetting(v_vec, i, v_val) =>
       <p className="now box replacing ">
-        {label("Replacing a vector element ")}
+        {React.string("Replacing a vector element ")}
         <br />
         {blank(
-          string_of_expr_app(
-            string_of_prm(VecSet),
-            list{`@${Int.toString(id)}`, Int.toString(i), string_of_value(v_val)},
-          )->tr_expr,
+          AppPrm(
+            VecSet,
+            list{
+              expr_of_value(Vec(v_vec)),
+              expr_of_value(Con(Num(i |> Int.toFloat))),
+              expr_of_value(v_val),
+            },
+          )
+          ->dummy_ann
+          ->string_of_expr,
         )}
         <br />
-        {label("in context ")}
+        {React.string("in context ")}
         {ctx}
         <br />
-        {label("in environment ")}
+        {React.string("in environment ")}
         {env}
       </p>
     }
   }
   let show_continuing_state = state => {
     switch state {
-    | Returning(v, stk) => {
+    | Returning(v, stk: stack) => {
         let stk = show_stack(stk)
         let now =
           <div className="now box returning">
             <p>
-              {label("Returning ")}
-              {show_value(v)}
+              {React.string("Returning ")}
+              {blank(v->string_of_value)}
             </p>
           </div>
         show_state(stk, now, show_all_envs(), show_all_havs())
       }
 
-    | Entering(entrance, b, env, stk) => {
+    | Entering(entrance, b, env, stk: stack) => {
         let stk = show_stack(stk)
         let now =
           <p className="now box called">
-            {label(`Evaluating ${stringOfEntrance(entrance)}`)}
+            {React.string(`Evaluating ${string_of_entrace(entrance)}`)}
             <br />
-            {blank(string_of_block(b)->tr_fun_body)}
+            {blank(string_of_block(b))}
             <br />
-            {label("in environment ")}
+            {React.string("in environment ")}
             {show_env(env)}
           </p>
         show_state(stk, now, show_all_envs(), show_all_havs())
       }
 
-    | Reducing(redex, stt) => {
-        let {ctx, env, stk} = stt
-        let now = nowOfRedex(
-          redex,
-          ctx->if stk == list{} {
-            show_top_level_ctx
-          } else {
-            show_ctx
-          },
-          env->show_env,
-        )
-        let stk = show_stack(stk)
+    | Reducing(redex, stk) => {
+        let (ctx, env, stk) = switch stk {
+        | {topping: list{}, base: {ctx, env}} => (
+            blank(ctx->string_of_program_context),
+            env->show_env,
+            <> </>,
+          )
+        | {topping: list{{ctx, env}, ...topping}, base} => (
+            blank(ctx->string_of_body_context),
+            env->show_env,
+            show_stack({topping, base}),
+          )
+        }
+        let now = nowOfRedex(redex, ctx, env)
         show_state(stk, now, show_all_envs(), show_all_havs())
       }
     }
   }
   switch s {
   | Terminated(state) =>
-    show_state(show_stack(list{}), nowOfTerminatedState(state), show_all_envs(), show_all_havs())
+    show_state(
+      <p> {React.string("(No stack frames)")} </p>,
+      nowOfTerminatedState(state),
+      show_all_envs(),
+      show_all_havs(),
+    )
   | Continuing(state) => show_continuing_state(state)
   }
 }
