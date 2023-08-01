@@ -5,7 +5,9 @@ open SMoL
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
-@module("./url_parameters") external make_url: (string, string, int, string) => string = "make_url"
+@module("./url_parameters") external readOnlyMode: bool = "readOnlyMode"
+@module("./url_parameters")
+external make_url: (string, string, int, string, bool) => string = "make_url"
 @scope("window") @val external openPopUp: string => unit = "openPopUp"
 
 exception Impossible
@@ -164,8 +166,8 @@ let make = () => {
   | Running({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
   | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
-  let onShare = _evt => {
-    openPopUp(make_url(syntax, randomSeed.randomSeed, nNext, program))
+  let onShare = (readOnlyMode, _evt) => {
+    openPopUp(make_url(syntax, randomSeed.randomSeed, nNext, program, readOnlyMode))
   }
   let onKeyDown = evt => {
     let key = ReactEvent.Keyboard.key(evt)
@@ -179,73 +181,79 @@ let make = () => {
   let readOnly = !(state == Editing)
   <main onKeyDown>
     <section id="program-source">
-      <details>
-        <summary> {React.string("We provided some example programs.")} </summary>
-        <menu ariaLabel="a list of example programs">
-          <li>
-            <button
-              disabled={readOnly}
-              value="Fibonacci"
-              onClick={_evt => setProgram(_ => Programs.program_fib)}>
-              {React.string("Fibonacci")}
-            </button>
-          </li>
-          <li>
-            <button
-              disabled={readOnly}
-              value="Scope"
-              onClick={_evt => setProgram(_ => Programs.program_dynscope)}>
-              {React.string("Scope")}
-            </button>
-          </li>
-          <li>
-            <button
-              disabled={readOnly}
-              value="Counter1"
-              onClick={_evt => setProgram(_ => Programs.program_ctr1)}>
-              {React.string("Counter1")}
-            </button>
-          </li>
-          <li>
-            <button
-              disabled={readOnly}
-              value="Counter2"
-              onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
-              {React.string("Counter2")}
-            </button>
-          </li>
-          <li>
-            <button
-              disabled={readOnly}
-              value="Aliasing"
-              onClick={_evt => setProgram(_ => Programs.program_aliasing)}>
-              {React.string("Aliasing")}
-            </button>
-          </li>
-          <li>
-            <button
-              disabled={readOnly}
-              value="Object"
-              onClick={_evt => setProgram(_ => Programs.program_object)}>
-              {React.string("Object")}
-            </button>
-          </li>
-        </menu>
-      </details>
-      {if readOnly {
-        <p>
-          <mark>
-            <button onClick=onStopClick disabled={state == Editing}>
-              <span ariaHidden={true}> {React.string("⏹ ")} </span>
-              {React.string("Stop")}
-            </button>
-            {React.string(" before making any change!")}
-          </mark>
-        </p>
+      {if readOnlyMode {
+        <> </>
       } else {
-        React.array([])
+        <>
+          <details>
+            <summary> {React.string("We provided some example programs.")} </summary>
+            <menu ariaLabel="a list of example programs">
+              <li>
+                <button
+                  disabled={readOnly}
+                  value="Fibonacci"
+                  onClick={_evt => setProgram(_ => Programs.program_fib)}>
+                  {React.string("Fibonacci")}
+                </button>
+              </li>
+              <li>
+                <button
+                  disabled={readOnly}
+                  value="Scope"
+                  onClick={_evt => setProgram(_ => Programs.program_dynscope)}>
+                  {React.string("Scope")}
+                </button>
+              </li>
+              <li>
+                <button
+                  disabled={readOnly}
+                  value="Counter1"
+                  onClick={_evt => setProgram(_ => Programs.program_ctr1)}>
+                  {React.string("Counter1")}
+                </button>
+              </li>
+              <li>
+                <button
+                  disabled={readOnly}
+                  value="Counter2"
+                  onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
+                  {React.string("Counter2")}
+                </button>
+              </li>
+              <li>
+                <button
+                  disabled={readOnly}
+                  value="Aliasing"
+                  onClick={_evt => setProgram(_ => Programs.program_aliasing)}>
+                  {React.string("Aliasing")}
+                </button>
+              </li>
+              <li>
+                <button
+                  disabled={readOnly}
+                  value="Object"
+                  onClick={_evt => setProgram(_ => Programs.program_object)}>
+                  {React.string("Object")}
+                </button>
+              </li>
+            </menu>
+          </details>
+          {if readOnly {
+            <p>
+              <mark>
+                <button onClick=onStopClick disabled={state == Editing}>
+                  <span ariaHidden={true}> {React.string("⏹ ")} </span>
+                  {React.string("Stop")}
+                </button>
+                {React.string(" before making any change!")}
+              </mark>
+            </p>
+          } else {
+            React.array([])
+          }}
+          <span className="parse-feedback"> {React.string(parseFeedback)} </span>
+        </>
       }}
-      <span className="parse-feedback"> {React.string(parseFeedback)} </span>
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
         <CodeEditor
           syntax={if readOnly {
@@ -262,57 +270,73 @@ let make = () => {
           setProgram
         />
       </div>
-      <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
-        <summary> {React.string("Advanced configurations.")} </summary>
-        <label>
-          {React.string("Syntax-flavor =")}
-          {
-            let onChange = evt => {
-              let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-              setSyntax(_ => newValue)
-            }
-            <select onChange disabled={readOnly}>
-              <option selected={"Lisp" == syntax} value="Lisp"> {React.string("Lisp-like")} </option>
-              <option selected={"JavaScript" == syntax} value="JavaScript">
-                {React.string("JavaScript-like")}
-              </option>
-              <option selected={"Python" == syntax} value="Python"> {React.string("Python-like")} </option>
-            </select>
-          }
-        </label>
-        <br />
-        <label>
-          {React.string("Random Seed = ")}
-          {
-            let onChange = evt => {
-              let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-              setRandomSeed(_ => {isSet: true, randomSeed: newValue})
-            }
-            if randomSeed.isSet {
-              <input disabled={readOnly} type_="text" value={randomSeed.randomSeed} onChange />
-            } else {
-              <input
-                disabled={readOnly} type_="text" placeholder={randomSeed.randomSeed} onChange
-              />
-            }
-          }
-        </label>
-      </details>
+      {if readOnlyMode {
+        <> </>
+      } else {
+        <>
+          <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
+            <summary> {React.string("Advanced configurations.")} </summary>
+            <label>
+              {React.string("Syntax-flavor =")}
+              {
+                let onChange = evt => {
+                  let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+                  setSyntax(_ => newValue)
+                }
+                <select onChange disabled={readOnly}>
+                  <option selected={"Lisp" == syntax} value="Lisp">
+                    {React.string("Lisp-like")}
+                  </option>
+                  <option selected={"JavaScript" == syntax} value="JavaScript">
+                    {React.string("JavaScript-like")}
+                  </option>
+                  <option selected={"Python" == syntax} value="Python">
+                    {React.string("Python-like")}
+                  </option>
+                </select>
+              }
+            </label>
+            <br />
+            <label>
+              {React.string("Random Seed = ")}
+              {
+                let onChange = evt => {
+                  let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+                  setRandomSeed(_ => {isSet: true, randomSeed: newValue})
+                }
+                if randomSeed.isSet {
+                  <input disabled={readOnly} type_="text" value={randomSeed.randomSeed} onChange />
+                } else {
+                  <input
+                    disabled={readOnly} type_="text" placeholder={randomSeed.randomSeed} onChange
+                  />
+                }
+              }
+            </label>
+          </details>
+        </>
+      }}
     </section>
     <section id="stacker">
       <menu id="nav-trace" ariaLabel="toolbar">
-        <li>
-          <button onClick=onRunClick disabled={state != Editing}>
-            <span ariaHidden={true}> {React.string("⏵ ")} </span>
-            {React.string("Run")}
-          </button>
-        </li>
-        <li>
-          <button onClick=onStopClick disabled={state == Editing}>
-            <span ariaHidden={true}> {React.string("⏹ ")} </span>
-            {React.string("Stop")}
-          </button>
-        </li>
+        {if readOnlyMode {
+          <> </>
+        } else {
+          <>
+            <li>
+              <button onClick=onRunClick disabled={state != Editing}>
+                <span ariaHidden={true}> {React.string("⏵ ")} </span>
+                {React.string("Run")}
+              </button>
+            </li>
+            <li>
+              <button onClick=onStopClick disabled={state == Editing}>
+                <span ariaHidden={true}> {React.string("⏹ ")} </span>
+                {React.string("Stop")}
+              </button>
+            </li>
+          </>
+        }}
         <li>
           <button onClick=onPrevClick disabled={!prevable}>
             <span ariaHidden={true}> {React.string("⏮ ")} </span>
@@ -328,11 +352,21 @@ let make = () => {
           </button>
         </li>
         <li>
-          <button onClick=onShare disabled={state == Editing}>
+          <button onClick={onShare(readOnlyMode)} disabled={state == Editing}>
             <span ariaHidden={true}> {React.string("🔗 ")} </span>
             {React.string("Share This Configuration")}
           </button>
         </li>
+        {if readOnlyMode {
+          <> </>
+        } else {
+          <li>
+            <button onClick={onShare(true)} disabled={state == Editing}>
+              <span ariaHidden={true}> {React.string("🔗 ")} </span>
+              {React.string("Share Read-only Version")}
+            </button>
+          </li>
+        }}
       </menu>
       {switch state {
       | Editing =>

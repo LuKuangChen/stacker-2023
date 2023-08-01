@@ -8,6 +8,9 @@ expression {
   kw<"else"> |
   kw<"return"> |
   kw<"raise"> |
+  kw<"lambda"> |
+  kw<"global"> |
+  kw<"nonlocal"> |
   Identifier |
   String |
   Application { "(" expression* ")" } |

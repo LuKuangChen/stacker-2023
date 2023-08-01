@@ -20,6 +20,9 @@ let parserWithMetadata = parser.configure({
       "else": t.keyword,
       "return": t.keyword,
       "raise": t.keyword,
+      "lambda": t.keyword,
+      "global": t.keyword,
+      "nonlocal": t.keyword,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit
@@ -35,7 +38,7 @@ import { LRLanguage } from "@codemirror/language";
 export const pythonLanguage = LRLanguage.define({
   parser: parserWithMetadata,
   languageData: {
-    commentTokens: { line: "//" }
+    commentTokens: { line: "#" }
   }
 });
 
@@ -53,6 +56,8 @@ export const pythonCompletion = pythonLanguage.data.of({
     { label: "return", type: "keyword" },
     { label: "raise", type: "keyword" },
     { label: "lambda", type: "keyword" },
+    { label: "global", type: "keyword" },
+    { label: "nonlocal", type: "keyword" },
     { label: "+", type: "function" },
     { label: "-", type: "function" },
     { label: "*", type: "function" },

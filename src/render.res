@@ -44,6 +44,7 @@ let stringify_context = (stringify: stringifier) => {
       | Set1(x, ()) => Set(x, any)
       | App1((), es) => App(any, es)
       | App2(v, vs, (), es) => App(observe(v), list{...vs->List.map(observe), any, ...es})
+      | AppPrm1(p, vs, (), es) => AppPrm(p, list{...vs->List.map(observe), any, ...es})
       | Let1(xvs, (x, ()), xes, block) =>
         Let(list{...xvs->List.map(((x, v)) => (x, observe(v))), (x, any), ...xes}, block)
       | If1((), e_thn, e_els) => If(any, e_thn, e_els)
@@ -66,17 +67,13 @@ let stringify_context = (stringify: stringifier) => {
     dummy_ann(Ref(dummy_ann(string_of_value(v))))
   }
 
-  let term_of_value = (v: value): term => {
-    Exp(expr_of_value(v))
-  }
-
   let interp_program_base = (base: programBase, any: annotated<expression>): program => {
-    let (vs, redex, ts) = base
+    let (redex, ts) = base
     let redex: term = switch redex {
     | Def(x) => Def(dummy_ann(Var(x, any)))
     | Exp => Exp(any)
     }
-    list{...vs->List.map(term_of_value), redex, ...ts}
+    list{redex, ...ts}
   }
 
   let block_of_body_context = (any: annotated<expression>, ctx: pile<contextFrame, bodyBase>) => {
@@ -100,7 +97,10 @@ let stringify_context = (stringify: stringifier) => {
 
   let string_of_body_context = ctx => string_of_block(block_of_body_context(placeholder, ctx))
   let string_of_program_context = ctx =>
-    string_of_program(block_of_program_context(placeholder, ctx))
+    String.concat("\n",
+      list{
+        ...allVals->List.fromArray->List.map(string_of_value),
+        string_of_program(block_of_program_context(placeholder, ctx))})
   let string_of_fun = (f, xs, body) => {
     switch f {
     | None => string_of_expr(dummy_ann(Lam(xs, body)))
@@ -114,7 +114,7 @@ let stringify_context = (stringify: stringifier) => {
 exception Impossible(string)
 let render: (syntax_kind, state) => React.element = (sk, s) => {
   let stringify = adjust_syntax(sk)
-  let {string_of_expr, string_of_block} = stringify
+  let {string_of_expr, string_of_block, string_of_term} = stringify
   let (
     expr_of_value,
     string_of_value,
@@ -315,15 +315,30 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {blank(string_of_error(err))}
       </div>
 
-    | Tm(vs) =>
+    | Tm =>
       <div className="now box terminated">
         <p> {React.string("Terminated")} </p>
-        {blank(String.concat("\n", vs->List.map(string_of_value)))}
+        {blank(String.concat("\n", allVals->List.fromArray->List.map(v => v |> string_of_value)))}
       </div>
     }
   }
   let nowOfRedex = (redex, ctx, env) => {
     switch redex {
+    | AppPrming(f, vs) =>
+      <p className="now box calling">
+        {React.string("Calling ")}
+        {blank(
+          dummy_ann(
+            (AppPrm(f, vs->List.map(expr_of_value)): expression),
+          )->string_of_expr,
+        )}
+        <br />
+        {React.string("in context ")}
+        {ctx}
+        <br />
+        {React.string("in environment ")}
+        {env}
+      </p>
     | Applying(f, vs) =>
       <p className="now box calling">
         {React.string("Calling ")}
@@ -344,7 +359,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       <p className="now box replacing">
         {React.string("Rebinding a variable ")}
         <br />
-        {blank(Set(x, expr_of_value(v))->dummy_ann->string_of_expr)}
+        {blank(Set(x, expr_of_value(v))->dummy_ann->(x=>(Exp(x) : term))->string_of_term)}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -367,7 +382,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
             },
           )
           ->dummy_ann
-          ->string_of_expr,
+          ->(x=>(Exp(x) : term))->string_of_term,
         )}
         <br />
         {React.string("in context ")}

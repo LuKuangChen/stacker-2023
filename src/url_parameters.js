@@ -7,14 +7,15 @@ export const syntaxAtURL = urlParams.get('syntax') || "";
 export const randomSeedAtURL = urlParams.get('randomSeed') || "";
 export const nNextAtURL = parseInt(urlParams.get('nNext') || "0");
 export const programAtURL = urlParams.get('program') || "";
-export const make_url = (syntax, randomSeed, nNext, program) => {
+export const readOnlyMode = urlParams.get('readOnlyMode') !== null
+export const make_url = (syntax, randomSeed, nNext, program, readOnlyMode) => {
     const params = new URLSearchParams();
     params.set('syntax', syntax);
     params.set('randomSeed', randomSeed);
     params.set('nNext', nNext);
     params.set('program', program);
+    if (readOnlyMode) {
+        params.set('readOnlyMode', "")
+    }
     return `${urlBase}?${params.toString()}`;
-};
-export const shareLink = (syntax, randomSeed, nNext, program) => {
-    alert(make_url(syntax, randomSeed, nNext, program));
 };

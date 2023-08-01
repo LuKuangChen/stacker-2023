@@ -78,6 +78,12 @@ let initialEnv: environment = list{
       ("vec-ref", ref(Some((VFun(Prm(VecRef)): value)))),
       ("vec-set!", ref(Some((VFun(Prm(VecSet)): value)))),
       ("vec-len", ref(Some((VFun(Prm(VecLen)): value)))),
+      ("pair", ref(Some((VFun(Prm(PairNew)): value)))),
+      ("mpair", ref(Some((VFun(Prm(PairNew)): value)))),
+      ("left", ref(Some((VFun(Prm(PairRefLeft)): value)))),
+      ("right", ref(Some((VFun(Prm(PairRefRight)): value)))),
+      ("set-left!", ref(Some((VFun(Prm(PairSetLeft)): value)))),
+      ("set-right!", ref(Some((VFun(Prm(PairSetRight)): value)))),
       ("error", ref(Some((VFun(Prm(Err)): value)))),
     ],
   },
@@ -158,16 +164,16 @@ let makeTopLevel = (env, xs): environment => {
 
 let extend = (env, xs): environment => {
   // if Array.length(xs) == 0 {
-  //   env
+    // env
   // } else {
-  let id = newEnvId()
-  let frm = {
-    id: Int.toString(id),
-    content: xs |> Js.Array.map(x => (x, ref(None))),
-  }
-  let env = list{frm, ...env}
-  allEnvs := list{env, ...allEnvs.contents}
-  env
+    let id = newEnvId()
+    let frm = {
+      id: Int.toString(id),
+      content: xs |> Js.Array.map(x => (x, ref(None))),
+    }
+    let env = list{frm, ...env}
+    allEnvs := list{env, ...allEnvs.contents}
+    env
   // }
 }
 
@@ -182,8 +188,8 @@ let rec lookup = (env: environment, x) => {
   switch env {
   | list{} => raise(RuntimeError(UnboundIdentifier(x)))
   | list{frm, ...env} =>
-    let {id, content} = frm
-    Js.log(`Looking up ${x} in ${id}`)
+    let {content} = frm
+    // Js.log(`Looking up ${x} in ${id}`)
     content
     |> Js.Array.find(((y, _v)) => x == y)
     |> Js.Option.map((. (_x, v)) => v)
@@ -198,7 +204,7 @@ let doRef = (env, x) => {
   }
 }
 let doSet = (env: environment, x: annotated<symbol>, v: value) => {
-  Js.log(`Setting`)
+  // Js.log(`Setting`)
   switch v {
   | VFun(Udf(_id, name, _meta, _xs, _env, _body)) =>
     switch name.contents {
@@ -215,6 +221,7 @@ type contextFrame =
   | Set1(annotated<symbol>, unit)
   | App1(unit, list<annotated<expression>>)
   | App2(value, list<value>, unit, list<annotated<expression>>)
+  | AppPrm1(primitive, list<value>, unit, list<annotated<expression>>)
   | Let1(
       list<(annotated<symbol>, value)>,
       (annotated<symbol>, unit),
@@ -231,7 +238,9 @@ type bodyBase =
 type programRedex =
   | Def(annotated<symbol>)
   | Exp
-type programBase = (list<value>, programRedex, list<term>)
+type programBase = (programRedex, list<term>)
+
+let allVals: array<value> = []
 
 type pile<'topping, 'base> = {topping: list<'topping>, base: 'base}
 let add_pile = (new_topping, {topping, base}) => {topping: list{new_topping, ...topping}, base}
@@ -263,7 +272,7 @@ let consCtx = (f: contextFrame, stk: stack) => {
 
 type terminated_state =
   | Err(runtimeError)
-  | Tm(list<value>)
+  | Tm
 type entrance =
   | Let
   | App
@@ -273,6 +282,7 @@ let string_of_entrace = entrance =>
   | App => "a function body"
   }
 type redex =
+  | AppPrming(primitive, list<value>)
   | Applying(value, list<value>)
   | Setting(annotated<symbol>, value)
   | VecSetting(vector, int, value)
@@ -459,14 +469,15 @@ and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: env
   let {topping, base} = ctx
   switch topping {
   | list{} =>
-    let (vs, redex, ts) = base
+    let (redex, ts) = base
     switch redex {
     | Def(x) =>
       doSet(env, x, v)
-      transitionPrg(vs, ts, env)
+      transitionPrg(ts, env)
     | Exp =>
       print(v)
-      transitionPrg(list{...vs, v}, ts, env)
+      let _ = Js.Array.push(v, allVals)
+      transitionPrg(ts, env)
     }
   | list{ctxFrame, ...topping} => {
       let stk: stack = {topping: list{}, base: {ctx: {topping, base}, env}}
@@ -501,6 +512,9 @@ and handleCtxFrame = (v, ctxFrame, stk: stack) => {
   | App2(fun, vals, (), exps) =>
     let vals = list{v, ...vals}
     transitionApp(fun, vals, exps, stk)
+  | AppPrm1(fun, vals, (), exps) =>
+    let vals = list{v, ...vals}
+    transitionAppPrm(fun, vals, exps, stk)
   | Cnd1((), b, ebs, ob) =>
     switch asLgc(v) {
     | true => doBlk(b, stk)
@@ -534,7 +548,7 @@ and doEv = (exp: annotated<expression>, stk: stack) =>
 
   | Bgn(es, e) => transitionBgn(es, e, stk)
 
-  | AppPrm(p, es) => transitionApp(VFun(Prm(p)), list{}, es, stk)
+  | AppPrm(p, es) => transitionAppPrm(p, list{}, es, stk)
   | App(e, es) =>
     let exp = e
     doEv(exp, consCtx(App1((), es), stk))
@@ -572,18 +586,18 @@ and transitionBlock = ((ts, e), env: environment, stk: stack) => {
     doEv(exp, add_pile({ctx: new_pile(BdyExp((), (ts, e))), env}, stk))
   }
 }
-and transitionPrg = (vs, ts, env: environment) => {
+and transitionPrg = (ts, env: environment) => {
   switch ts {
-  | list{} => Terminated(Tm(vs))
+  | list{} => Terminated(Tm)
   | list{Def({ann: _, it: Var(x, e0)}), ...ts} =>
     let exp = e0
-    doEv(exp, new_pile({env, ctx: new_pile((vs, Def(x), ts))}))
+    doEv(exp, new_pile({env, ctx: new_pile((Def(x), ts))}))
   | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
     let exp = annotate(Lam(xs, b), ann.begin, ann.end)
-    doEv(exp, new_pile({env, ctx: new_pile((vs, Def(f), ts))}))
+    doEv(exp, new_pile({env, ctx: new_pile((Def(f), ts))}))
   | list{Exp(e0), ...ts} =>
     let exp = e0
-    doEv(exp, new_pile({env, ctx: new_pile((vs, Exp, ts))}))
+    doEv(exp, new_pile({env, ctx: new_pile((Exp, ts))}))
   }
 }
 and transitionCnd = (ebs, ob, stk: stack) => {
@@ -642,6 +656,23 @@ and entering = (entrance, b, env, stk) => {
 and doEntering = (b, env, stk): state => {
   transitionBlock(b, env, stk)
 }
+and transitionAppPrm = (
+  f: primitive,
+  vs: list<value>,
+  es: list<annotated<expression>>,
+  stk: stack,
+) => {
+  switch es {
+  | list{} => {
+      let vs = List.reverse(vs)
+      doApp(VFun(Prm(f)), vs, stk)
+    }
+
+  | list{e, ...es} =>
+    let exp = e
+    doEv(exp, consCtx(AppPrm1(f, vs, (), es), stk))
+  }
+}
 and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>, stk: stack) => {
   switch es {
   | list{} => {
@@ -659,7 +690,19 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
   }
 }
 and doBlk = (b, stk): state => {
-  let env = extend(current_env(stk), xsOfBlock(b)->Array.map(unann))
+  let xs = xsOfBlock(b)->Array.map(unann)
+  let env = current_env(stk)
+  let env = if (Array.length(xs) == 0) {
+    env
+  } else {
+    extend(env, xs)
+  }
+  let stk = switch stk {
+  // tail-call optimization
+  | {topping: list{{ctx: {topping: list{}, base: BdyRet}, env: _}, ...topping}, base} =>
+    {topping, base}
+  | stk => stk
+  }
   transitionBlock(b, env, stk)
 }
 
@@ -668,13 +711,14 @@ let load = (program: program, randomSeed: string) => {
   // initialize all global things
   allEnvs := list{}
   allHavs := list{}
+  let _ = Js.Array.removeFromInPlace(~pos=0, allVals)
   randomInt := makeRandomInt(randomSeed)
 
   // now let's get started
   let xs = xsOfTerms(program)
   let env = makeTopLevel(initialEnv, xs->Array.map(unann))
   try {
-    transitionPrg(list{}, program, env)
+    transitionPrg(program, env)
   } catch {
   | RuntimeError(err) => Terminated(Err(err))
   }
@@ -689,6 +733,7 @@ let transition = (state: continuing_state): state => {
       switch redex {
       | Setting(x, v) => setting(x, v, stk)
       | VecSetting(v, i, e) => doVecSet(v, i, e, stk)
+      | AppPrming(f, vs) => doApp(VFun(Prm(f)), vs, stk)
       | Applying(f, vs) => doApp(f, vs, stk)
       }
     }
