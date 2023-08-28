@@ -42,11 +42,28 @@ let new_randomSeed = () => {
   pool_of_randomSeed->Array.get(index)->Option.getWithDefault(Js.Math.random()->Float.toString)
 }
 
-type state =
-  | Editing
-  | Running(running_state)
+type state = {
+  running: option<running_state>,
+  preview: option<Render.syntax_kind>,
+}
 
 type randomSeedConfig = {isSet: bool, randomSeed: string}
+
+let make_preview = (sk, program) => {
+  switch program->terms_of_string {
+  | program =>
+    <CodeEditor
+      syntax={sk}
+      program={program->Render.adjust_syntax(sk).string_of_program}
+      readOnly={true}
+      setProgram={_ => ()}
+    />
+  | exception SMoL.ParseError(err) => {
+      let parseFeedback = stringOfParseError(err)
+      <span className="parse-feedback"> {React.string(parseFeedback)} </span>
+    }
+  }
+}
 
 @react.component
 let make = () => {
@@ -74,16 +91,39 @@ let make = () => {
   let parseSMoL = (program: string) => {
     terms_of_string(program)
   }
+  let forward = s => {
+    switch s {
+    | None => raise(Impossible)
+    | Some({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
+    | Some({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
+        let latestState = Runtime.transition(latestState)
+        Some({
+          prevs: list{now, ...prevs},
+          now: Render.render(parseSyntax(syntax), latestState),
+          nexts: list{},
+          latestState,
+        })
+      }
+
+    | Some({prevs, now, nexts: list{e, ...nexts}, latestState}) =>
+      Some({
+        prevs: list{now, ...prevs},
+        now: e,
+        nexts,
+        latestState,
+      })
+    }
+  }
   let loadProgram = program => {
     switch parseSMoL(program) {
-    | exception ParseError(err) => {
+    | exception SMoL.ParseError(err) => {
         setParseFeedback(_ => stringOfParseError(err))
-        Editing
+        None
       }
 
     | program => {
         let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed)
-        Running({
+        Some({
           prevs: list{},
           nexts: list{},
           now: Render.render(parseSyntax(syntax), s),
@@ -92,32 +132,12 @@ let make = () => {
       }
     }
   }
-  let forward = s => {
-    switch s {
-    | Editing => raise(Impossible)
-    | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
-    | Running({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
-        let latestState = Runtime.transition(latestState)
-        Running({
-          prevs: list{now, ...prevs},
-          now: Render.render(parseSyntax(syntax), latestState),
-          nexts: list{},
-          latestState,
-        })
-      }
-
-    | Running({prevs, now, nexts: list{e, ...nexts}, latestState}) =>
-      Running({
-        prevs: list{now, ...prevs},
-        now: e,
-        nexts,
-        latestState,
-      })
-    }
-  }
   let (state, setState) = React.useState(_ => {
     if programAtURL == "" {
-      Editing
+      {
+        running: None,
+        preview: None,
+      }
     } else {
       setProgram(_ => programAtURL)
       setNNext(_ => nNextAtURL)
@@ -125,19 +145,22 @@ let make = () => {
       for _ in 1 to nNextAtURL {
         s.contents = forward(s.contents)
       }
-      s.contents
+      {
+        running: s.contents,
+        preview: None,
+      }
     }
   })
   let onRunClick = _evt => {
-    setState(_ => loadProgram(program))
+    setState(state => {...state, running: loadProgram(program)})
     setNNext(_ => 0)
   }
   let onStopClick = _evt => {
-    setState(_ => Editing)
+    setState(state => {...state, running: None})
   }
-  let prevable = switch state {
-  | Editing => false
-  | Running({prevs, now: _, nexts: _, latestState: _}) =>
+  let prevable = switch state.running {
+  | None => false
+  | Some({prevs, now: _, nexts: _, latestState: _}) =>
     switch prevs {
     | list{} => false
     | list{_e, ..._prevs} => true
@@ -146,25 +169,31 @@ let make = () => {
   let onPrevClick = _evt => {
     setNNext(nNext => nNext - 1)
     setState(state =>
-      switch state {
-      | Editing => raise(Impossible)
-      | Running({prevs, now, nexts, latestState}) =>
+      switch state.running {
+      | None => raise(Impossible)
+      | Some({prevs, now, nexts, latestState}) =>
         switch prevs {
         | list{} => raise(Impossible)
-        | list{e, ...prevs} => Running({prevs, now: e, nexts: list{now, ...nexts}, latestState})
+        | list{e, ...prevs} => {
+            ...state,
+            running: Some({prevs, now: e, nexts: list{now, ...nexts}, latestState}),
+          }
         }
       }
     )
   }
   let onNextClick = _evt => {
     setNNext(nNext => nNext + 1)
-    setState(forward)
+    setState(state => {
+      ...state,
+      running: forward(state.running),
+    })
   }
-  let nextable = switch state {
-  | Editing => false
-  | Running({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => false
-  | Running({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
-  | Running({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
+  let nextable = switch state.running {
+  | None => false
+  | Some({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => false
+  | Some({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
+  | Some({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   let onShare = (readOnlyMode, _evt) => {
     openPopUp(make_url(syntax, randomSeed.randomSeed, nNext, program, readOnlyMode))
@@ -178,181 +207,217 @@ let make = () => {
       onNextClick(evt)
     }
   }
-  let readOnly = !(state == Editing)
+  let is_running = state.running != None
+  let runButton =
+    <button onClick=onRunClick disabled={is_running}>
+      <span ariaHidden={true}> {React.string("⏵ ")} </span>
+      {React.string("Run")}
+    </button>
+  let stopButton =
+    <button onClick=onStopClick disabled={!is_running}>
+      <span ariaHidden={true}> {React.string("⏹ ")} </span>
+      {React.string("Stop")}
+    </button>
+  let prevButton =
+    <button onClick=onPrevClick disabled={!prevable}>
+      <span ariaHidden={true}> {React.string("⏮ ")} </span>
+      {React.string("Previous")}
+      // <kbd> {React.string("j")} </kbd>
+    </button>
+  let nextButton =
+    <button onClick=onNextClick disabled={!nextable}>
+      <span ariaHidden={true}> {React.string("⏭ ")} </span>
+      {React.string("Next")}
+      // <kbd> {React.string("k")} </kbd>
+    </button>
+  let previewProgram = preview => {
+    _event => {
+      setState(state => {...state, preview})
+    }
+  }
+  let exampleProgramsAndStopButtonShortcut = if readOnlyMode {
+    <> </>
+  } else {
+    <>
+      <details>
+        <summary> {React.string("We provided some example programs.")} </summary>
+        <menu ariaLabel="a list of example programs">
+          <li>
+            <button
+              disabled={is_running}
+              value="Fibonacci"
+              onClick={_evt => setProgram(_ => Programs.program_fib)}>
+              {React.string("Fibonacci")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={is_running}
+              value="Scope"
+              onClick={_evt => setProgram(_ => Programs.program_dynscope)}>
+              {React.string("Scope")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={is_running}
+              value="Counter1"
+              onClick={_evt => setProgram(_ => Programs.program_ctr1)}>
+              {React.string("Counter1")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={is_running}
+              value="Counter2"
+              onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
+              {React.string("Counter2")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={is_running}
+              value="Aliasing"
+              onClick={_evt => setProgram(_ => Programs.program_aliasing)}>
+              {React.string("Aliasing")}
+            </button>
+          </li>
+          <li>
+            <button
+              disabled={is_running}
+              value="Object"
+              onClick={_evt => setProgram(_ => Programs.program_object)}>
+              {React.string("Object")}
+            </button>
+          </li>
+        </menu>
+      </details>
+      {if is_running {
+        <p>
+          <mark>
+            <button onClick=onStopClick disabled={!is_running}>
+              <span ariaHidden={true}> {React.string("⏹ ")} </span>
+              {React.string("Stop")}
+            </button>
+            {React.string(" before making any change!")}
+          </mark>
+        </p>
+      } else {
+        React.array([])
+      }}
+      <span className="parse-feedback"> {React.string(parseFeedback)} </span>
+      <span>
+        {React.string("👁️ View code as ")}
+        <label>
+          <input
+            disabled={is_running}
+            type_="radio"
+            name="preview"
+            value="off"
+            onClick={previewProgram(None)}
+          />
+          {React.string("it is")}
+        </label>
+        <label>
+          <input
+            disabled={is_running}
+            type_="radio"
+            name="preview"
+            value="JavaScript"
+            onClick={previewProgram(Some(JavaScript))}
+          />
+          {React.string("JavaScript")}
+        </label>
+        <label>
+          <input
+            disabled={is_running}
+            type_="radio"
+            name="preview"
+            value="Python"
+            onClick={previewProgram(Some(Python))}
+          />
+          {React.string("Python")}
+        </label>
+      </span>
+    </>
+  }
+  let advancedConfiguration = if readOnlyMode {
+    <> </>
+  } else {
+    <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
+      <summary> {React.string("Advanced configurations.")} </summary>
+      <label>
+        {React.string("Syntax-flavor =")}
+        {
+          let onChange = evt => {
+            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+            setSyntax(_ => newValue)
+          }
+          <select onChange disabled={is_running}>
+            <option selected={"Lisp" == syntax} value="Lisp"> {React.string("Lisp-like")} </option>
+            <option selected={"JavaScript" == syntax} value="JavaScript">
+              {React.string("JavaScript-like")}
+            </option>
+            <option selected={"Python" == syntax} value="Python">
+              {React.string("Python-like")}
+            </option>
+          </select>
+        }
+      </label>
+      <br />
+      <label>
+        {React.string("Random Seed = ")}
+        {
+          let onChange = evt => {
+            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+            setRandomSeed(_ => {isSet: true, randomSeed: newValue})
+          }
+          if randomSeed.isSet {
+            <input disabled={is_running} type_="text" value={randomSeed.randomSeed} onChange />
+          } else {
+            <input
+              disabled={is_running} type_="text" placeholder={randomSeed.randomSeed} onChange
+            />
+          }
+        }
+      </label>
+    </details>
+  }
   <main onKeyDown>
     <section id="program-source">
-      {if readOnlyMode {
-        <> </>
-      } else {
-        <>
-          <details>
-            <summary> {React.string("We provided some example programs.")} </summary>
-            <menu ariaLabel="a list of example programs">
-              <li>
-                <button
-                  disabled={readOnly}
-                  value="Fibonacci"
-                  onClick={_evt => setProgram(_ => Programs.program_fib)}>
-                  {React.string("Fibonacci")}
-                </button>
-              </li>
-              <li>
-                <button
-                  disabled={readOnly}
-                  value="Scope"
-                  onClick={_evt => setProgram(_ => Programs.program_dynscope)}>
-                  {React.string("Scope")}
-                </button>
-              </li>
-              <li>
-                <button
-                  disabled={readOnly}
-                  value="Counter1"
-                  onClick={_evt => setProgram(_ => Programs.program_ctr1)}>
-                  {React.string("Counter1")}
-                </button>
-              </li>
-              <li>
-                <button
-                  disabled={readOnly}
-                  value="Counter2"
-                  onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
-                  {React.string("Counter2")}
-                </button>
-              </li>
-              <li>
-                <button
-                  disabled={readOnly}
-                  value="Aliasing"
-                  onClick={_evt => setProgram(_ => Programs.program_aliasing)}>
-                  {React.string("Aliasing")}
-                </button>
-              </li>
-              <li>
-                <button
-                  disabled={readOnly}
-                  value="Object"
-                  onClick={_evt => setProgram(_ => Programs.program_object)}>
-                  {React.string("Object")}
-                </button>
-              </li>
-            </menu>
-          </details>
-          {if readOnly {
-            <p>
-              <mark>
-                <button onClick=onStopClick disabled={state == Editing}>
-                  <span ariaHidden={true}> {React.string("⏹ ")} </span>
-                  {React.string("Stop")}
-                </button>
-                {React.string(" before making any change!")}
-              </mark>
-            </p>
-          } else {
-            React.array([])
-          }}
-          <span className="parse-feedback"> {React.string(parseFeedback)} </span>
-        </>
-      }}
+      {exampleProgramsAndStopButtonShortcut}
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
         <CodeEditor
-          syntax={if readOnly {
+          syntax={if is_running {
             parseSyntax(syntax)
           } else {
             Lisp
           }}
-          program={if readOnly {
+          program={if is_running {
             program->terms_of_string->Render.adjust_syntax(parseSyntax(syntax)).string_of_program
           } else {
             program
           }}
-          readOnly
+          readOnly={is_running}
           setProgram
         />
       </div>
-      {if readOnlyMode {
-        <> </>
-      } else {
-        <>
-          <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
-            <summary> {React.string("Advanced configurations.")} </summary>
-            <label>
-              {React.string("Syntax-flavor =")}
-              {
-                let onChange = evt => {
-                  let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-                  setSyntax(_ => newValue)
-                }
-                <select onChange disabled={readOnly}>
-                  <option selected={"Lisp" == syntax} value="Lisp">
-                    {React.string("Lisp-like")}
-                  </option>
-                  <option selected={"JavaScript" == syntax} value="JavaScript">
-                    {React.string("JavaScript-like")}
-                  </option>
-                  <option selected={"Python" == syntax} value="Python">
-                    {React.string("Python-like")}
-                  </option>
-                </select>
-              }
-            </label>
-            <br />
-            <label>
-              {React.string("Random Seed = ")}
-              {
-                let onChange = evt => {
-                  let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-                  setRandomSeed(_ => {isSet: true, randomSeed: newValue})
-                }
-                if randomSeed.isSet {
-                  <input disabled={readOnly} type_="text" value={randomSeed.randomSeed} onChange />
-                } else {
-                  <input
-                    disabled={readOnly} type_="text" placeholder={randomSeed.randomSeed} onChange
-                  />
-                }
-              }
-            </label>
-          </details>
-        </>
-      }}
     </section>
     <section id="stacker">
+      {advancedConfiguration}
       <menu id="nav-trace" ariaLabel="toolbar">
         {if readOnlyMode {
           <> </>
         } else {
           <>
-            <li>
-              <button onClick=onRunClick disabled={state != Editing}>
-                <span ariaHidden={true}> {React.string("⏵ ")} </span>
-                {React.string("Run")}
-              </button>
-            </li>
-            <li>
-              <button onClick=onStopClick disabled={state == Editing}>
-                <span ariaHidden={true}> {React.string("⏹ ")} </span>
-                {React.string("Stop")}
-              </button>
-            </li>
+            <li> {runButton} </li>
+            <li> {stopButton} </li>
           </>
         }}
+        <li> {prevButton} </li>
+        <li> {nextButton} </li>
         <li>
-          <button onClick=onPrevClick disabled={!prevable}>
-            <span ariaHidden={true}> {React.string("⏮ ")} </span>
-            {React.string("Previous")}
-            // <kbd> {React.string("j")} </kbd>
-          </button>
-        </li>
-        <li>
-          <button onClick=onNextClick disabled={!nextable}>
-            <span ariaHidden={true}> {React.string("⏭ ")} </span>
-            {React.string("Next")}
-            // <kbd> {React.string("k")} </kbd>
-          </button>
-        </li>
-        <li>
-          <button onClick={onShare(readOnlyMode)} disabled={state == Editing}>
+          <button onClick={onShare(readOnlyMode)} disabled={!is_running}>
             <span ariaHidden={true}> {React.string("🔗 ")} </span>
             {React.string("Share This Configuration")}
           </button>
@@ -361,25 +426,29 @@ let make = () => {
           <> </>
         } else {
           <li>
-            <button onClick={onShare(true)} disabled={state == Editing}>
+            <button onClick={onShare(true)} disabled={!is_running}>
               <span ariaHidden={true}> {React.string("🔗 ")} </span>
               {React.string("Share Read-only Version")}
             </button>
           </li>
         }}
       </menu>
-      {switch state {
-      | Editing =>
-        <p>
-          {React.string("To start tracing, click ")}
-          <button onClick=onRunClick disabled={state != Editing}>
-            <span ariaHidden={true}> {React.string("⏵ ")} </span>
-            {React.string("Run")}
-          </button>
-          {React.string(".")}
-        </p>
+      {switch state.running {
+      | None =>
+        switch state.preview {
+        | None =>
+          <p>
+            {React.string("To start tracing, click ")}
+            <button onClick=onRunClick disabled={is_running}>
+              <span ariaHidden={true}> {React.string("⏵ ")} </span>
+              {React.string("Run")}
+            </button>
+            {React.string(".")}
+          </p>
+        | Some(sk) => make_preview(sk, program)
+        }
 
-      | Running(s) => s.now
+      | Some(s) => s.now
       }}
     </section>
   </main>
