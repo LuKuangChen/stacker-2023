@@ -342,7 +342,7 @@ let make = () => {
             onClick={previewProgram(None)}
             checked={preview == None}
           />
-          <span>{React.string("nothing")}</span>
+          <span>{React.string("off")}</span>
         </label>
       </span>
     </>
@@ -351,22 +351,25 @@ let make = () => {
     <> </>
   } else {
     <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
-      <summary> {React.string("Advanced configurations.")} </summary>
+      <summary> {React.string("Advanced configurations...")} </summary>
       <label>
-        {React.string("Syntax-flavor =")}
+        {React.string("Syntax-flavor = ")}
         {
           let onChange = evt => {
             let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
             setSyntax(_ => parseSyntax(newValue))
           }
           <select onChange disabled={is_running}>
-            <option selected={Render.Lisp == runtime_syntax} value="SMoL">
+            <option selected={None == syntax} value="auto">
+              {React.string(`Auto (${runtime_syntax |> syntax_as_string})`)}
+            </option>
+            <option selected={Some(Render.Lisp) == syntax} value="SMoL">
               {React.string("SMoL")}
             </option>
-            <option selected={Render.JavaScript == runtime_syntax} value="JavaScript">
+            <option selected={Some(Render.JavaScript) == syntax} value="JavaScript">
               {React.string("JavaScript")}
             </option>
-            <option selected={Render.Python == runtime_syntax} value="Python">
+            <option selected={Some(Render.Python) == syntax} value="Python">
               {React.string("Python")}
             </option>
           </select>

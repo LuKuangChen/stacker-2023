@@ -18,6 +18,7 @@ section#program-source {
     display: flex;
     flex-direction: column;
     height: 100%;
+    padding: 1ex;
 }
 
 section#program-source>div {
@@ -195,4 +196,10 @@ ol.box-list>li,
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     border: 0;
+}
+
+/* grey not-selected radio buttons */
+
+input[type="radio"]:not(:checked)+span {
+    color: grey;
 }
