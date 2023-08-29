@@ -14,10 +14,16 @@ exception Impossible
 
 let parseSyntax = newValue =>
   switch newValue {
-  | "Lisp" => Render.Lisp
-  | "JavaScript" => JavaScript
-  | "Python" => Python
-  | _ => Lisp
+  | "SMoL" => Some(Render.Lisp)
+  | "JavaScript" => Some(JavaScript)
+  | "Python" => Some(Python)
+  | _ => None
+  }
+let syntax_as_string = sk =>
+  switch sk {
+  | Render.Lisp => "SMoL"
+  | JavaScript => "JavaScript"
+  | Python => "Python"
   }
 
 type running_state = {
@@ -52,17 +58,28 @@ type randomSeedConfig = {isSet: bool, randomSeed: string}
 let make_preview = (sk, program) => {
   switch program->terms_of_string {
   | program =>
-    <CodeEditor
-      syntax={sk}
-      program={program->Render.adjust_syntax(sk).string_of_program}
-      readOnly={true}
-      setProgram={_ => ()}
-    />
+    <>
+      <span>
+        {React.string(`(Showing the `)}
+        <u> {React.string(sk |> syntax_as_string)} </u>
+        {React.string(` translation)`)}
+      </span>
+      <CodeEditor
+        syntax={sk}
+        program={program->Render.adjust_syntax(sk).string_of_program}
+        readOnly={true}
+        setProgram={_ => ()}
+      />
+    </>
   | exception SMoL.ParseError(err) => {
       let parseFeedback = stringOfParseError(err)
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
     }
   }
+}
+
+let parseSMoL = (program: string) => {
+  terms_of_string(program)
 }
 
 @react.component
@@ -76,9 +93,9 @@ let make = () => {
   let (nNext, setNNext) = React.useState(_ => 0)
   let (syntax, setSyntax) = React.useState(_ => {
     if syntaxAtURL == "" {
-      "Lisp"
+      None
     } else {
-      syntaxAtURL
+      parseSyntax(syntaxAtURL)
     }
   })
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
@@ -88,9 +105,8 @@ let make = () => {
       {isSet: true, randomSeed: randomSeedAtURL}
     }
   })
-  let parseSMoL = (program: string) => {
-    terms_of_string(program)
-  }
+  let (preview: option<Render.syntax_kind>, setPreview) = React.useState(_ => None)
+  let runtime_syntax = Option.orElse(syntax, preview)->Option.getWithDefault(Render.Lisp)
   let forward = s => {
     switch s {
     | None => raise(Impossible)
@@ -99,7 +115,7 @@ let make = () => {
         let latestState = Runtime.transition(latestState)
         Some({
           prevs: list{now, ...prevs},
-          now: Render.render(parseSyntax(syntax), latestState),
+          now: Render.render(runtime_syntax, latestState),
           nexts: list{},
           latestState,
         })
@@ -126,7 +142,7 @@ let make = () => {
         Some({
           prevs: list{},
           nexts: list{},
-          now: Render.render(parseSyntax(syntax), s),
+          now: Render.render(runtime_syntax, s),
           latestState: s,
         })
       }
@@ -134,10 +150,7 @@ let make = () => {
   }
   let (state, setState) = React.useState(_ => {
     if programAtURL == "" {
-      {
-        running: None,
-        preview: None,
-      }
+      None
     } else {
       setProgram(_ => programAtURL)
       setNNext(_ => nNextAtURL)
@@ -145,20 +158,17 @@ let make = () => {
       for _ in 1 to nNextAtURL {
         s.contents = forward(s.contents)
       }
-      {
-        running: s.contents,
-        preview: None,
-      }
+      s.contents
     }
   })
   let onRunClick = _evt => {
-    setState(state => {...state, running: loadProgram(program)})
+    setState(_ => loadProgram(program))
     setNNext(_ => 0)
   }
   let onStopClick = _evt => {
-    setState(state => {...state, running: None})
+    setState(state => None)
   }
-  let prevable = switch state.running {
+  let prevable = switch state {
   | None => false
   | Some({prevs, now: _, nexts: _, latestState: _}) =>
     switch prevs {
@@ -169,34 +179,29 @@ let make = () => {
   let onPrevClick = _evt => {
     setNNext(nNext => nNext - 1)
     setState(state =>
-      switch state.running {
+      switch state {
       | None => raise(Impossible)
       | Some({prevs, now, nexts, latestState}) =>
         switch prevs {
         | list{} => raise(Impossible)
-        | list{e, ...prevs} => {
-            ...state,
-            running: Some({prevs, now: e, nexts: list{now, ...nexts}, latestState}),
-          }
+        | list{e, ...prevs} =>
+           Some({prevs, now: e, nexts: list{now, ...nexts}, latestState})
         }
       }
     )
   }
   let onNextClick = _evt => {
     setNNext(nNext => nNext + 1)
-    setState(state => {
-      ...state,
-      running: forward(state.running),
-    })
+    setState(forward)
   }
-  let nextable = switch state.running {
+  let nextable = switch state {
   | None => false
   | Some({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => false
   | Some({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
   | Some({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   let onShare = (readOnlyMode, _evt) => {
-    openPopUp(make_url(syntax, randomSeed.randomSeed, nNext, program, readOnlyMode))
+    openPopUp(make_url(runtime_syntax -> syntax_as_string, randomSeed.randomSeed, nNext, program, readOnlyMode))
   }
   let onKeyDown = evt => {
     let key = ReactEvent.Keyboard.key(evt)
@@ -207,7 +212,7 @@ let make = () => {
       onNextClick(evt)
     }
   }
-  let is_running = state.running != None
+  let is_running = state != None
   let runButton =
     <button onClick=onRunClick disabled={is_running}>
       <span ariaHidden={true}> {React.string("⏵ ")} </span>
@@ -232,7 +237,7 @@ let make = () => {
     </button>
   let previewProgram = preview => {
     _event => {
-      setState(state => {...state, preview})
+      setPreview(_ => preview)
     }
   }
   let exampleProgramsAndStopButtonShortcut = if readOnlyMode {
@@ -313,16 +318,6 @@ let make = () => {
             disabled={is_running}
             type_="radio"
             name="preview"
-            value="off"
-            onClick={previewProgram(None)}
-          />
-          {React.string("it is")}
-        </label>
-        <label>
-          <input
-            disabled={is_running}
-            type_="radio"
-            name="preview"
             value="JavaScript"
             onClick={previewProgram(Some(JavaScript))}
           />
@@ -338,6 +333,16 @@ let make = () => {
           />
           {React.string("Python")}
         </label>
+        <label>
+          <input
+            disabled={is_running}
+            type_="radio"
+            name="preview"
+            value="off"
+            onClick={previewProgram(None)}
+          />
+          {React.string("SMoL (as it is)")}
+        </label>
       </span>
     </>
   }
@@ -351,15 +356,17 @@ let make = () => {
         {
           let onChange = evt => {
             let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-            setSyntax(_ => newValue)
+            setSyntax(_ => parseSyntax(newValue))
           }
           <select onChange disabled={is_running}>
-            <option selected={"Lisp" == syntax} value="Lisp"> {React.string("Lisp-like")} </option>
-            <option selected={"JavaScript" == syntax} value="JavaScript">
-              {React.string("JavaScript-like")}
+            <option selected={Some(Render.Lisp) == syntax} value="SMoL">
+              {React.string("SMoL")}
             </option>
-            <option selected={"Python" == syntax} value="Python">
-              {React.string("Python-like")}
+            <option selected={Some(Render.JavaScript) == syntax} value="JavaScript">
+              {React.string("JavaScript")}
+            </option>
+            <option selected={Some(Render.Python) == syntax} value="Python">
+              {React.string("Python")}
             </option>
           </select>
         }
@@ -389,12 +396,12 @@ let make = () => {
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
         <CodeEditor
           syntax={if is_running {
-            parseSyntax(syntax)
+            runtime_syntax
           } else {
             Lisp
           }}
           program={if is_running {
-            program->terms_of_string->Render.adjust_syntax(parseSyntax(syntax)).string_of_program
+            program->terms_of_string->Render.adjust_syntax(runtime_syntax).string_of_program
           } else {
             program
           }}
@@ -433,9 +440,9 @@ let make = () => {
           </li>
         }}
       </menu>
-      {switch state.running {
+      {switch state {
       | None =>
-        switch state.preview {
+        switch preview {
         | None =>
           <p>
             {React.string("To start tracing, click ")}

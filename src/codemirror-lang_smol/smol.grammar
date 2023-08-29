@@ -29,10 +29,6 @@ expression {
   "(" ")"
 
   "[" "]"
-
-  "#t"
-
-  "#f"
 }
 kw<term> { @specialize[@name={term}]<Identifier, term> }
 @skip { space | LineComment }
