@@ -312,7 +312,7 @@ let make = () => {
       }}
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
       <span>
-        {React.string("👁️ View code as ")}
+        {React.string("Show translation at right ➡️:")}
         <label>
           <input
             disabled={is_running}
@@ -321,7 +321,7 @@ let make = () => {
             value="JavaScript"
             onClick={previewProgram(Some(JavaScript))}
           />
-          {React.string("JavaScript")}
+          <span>{React.string("JavaScript")}</span>
         </label>
         <label>
           <input
@@ -331,7 +331,7 @@ let make = () => {
             value="Python"
             onClick={previewProgram(Some(Python))}
           />
-          {React.string("Python")}
+          <span>{React.string("Python")}</span>
         </label>
         <label>
           <input
@@ -340,8 +340,9 @@ let make = () => {
             name="preview"
             value="off"
             onClick={previewProgram(None)}
+            checked={preview == None}
           />
-          {React.string("SMoL (as it is)")}
+          <span>{React.string("nothing")}</span>
         </label>
       </span>
     </>
@@ -359,13 +360,13 @@ let make = () => {
             setSyntax(_ => parseSyntax(newValue))
           }
           <select onChange disabled={is_running}>
-            <option selected={Some(Render.Lisp) == syntax} value="SMoL">
+            <option selected={Render.Lisp == runtime_syntax} value="SMoL">
               {React.string("SMoL")}
             </option>
-            <option selected={Some(Render.JavaScript) == syntax} value="JavaScript">
+            <option selected={Render.JavaScript == runtime_syntax} value="JavaScript">
               {React.string("JavaScript")}
             </option>
-            <option selected={Some(Render.Python) == syntax} value="Python">
+            <option selected={Render.Python == runtime_syntax} value="Python">
               {React.string("Python")}
             </option>
           </select>
