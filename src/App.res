@@ -184,8 +184,7 @@ let make = () => {
       | Some({prevs, now, nexts, latestState}) =>
         switch prevs {
         | list{} => raise(Impossible)
-        | list{e, ...prevs} =>
-           Some({prevs, now: e, nexts: list{now, ...nexts}, latestState})
+        | list{e, ...prevs} => Some({prevs, now: e, nexts: list{now, ...nexts}, latestState})
         }
       }
     )
@@ -201,7 +200,15 @@ let make = () => {
   | Some({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
   let onShare = (readOnlyMode, _evt) => {
-    openPopUp(make_url(runtime_syntax -> syntax_as_string, randomSeed.randomSeed, nNext, program, readOnlyMode))
+    openPopUp(
+      make_url(
+        runtime_syntax->syntax_as_string,
+        randomSeed.randomSeed,
+        nNext,
+        program,
+        readOnlyMode,
+      ),
+    )
   }
   let onKeyDown = evt => {
     let key = ReactEvent.Keyboard.key(evt)
@@ -245,7 +252,7 @@ let make = () => {
   } else {
     <>
       <details>
-        <summary> {React.string("We provided some example programs.")} </summary>
+        <summary> {React.string("Example programs:")} </summary>
         <menu ariaLabel="a list of example programs">
           <li>
             <button
@@ -321,7 +328,7 @@ let make = () => {
             value="JavaScript"
             onClick={previewProgram(Some(JavaScript))}
           />
-          <span>{React.string("JavaScript")}</span>
+          <span> {React.string("JavaScript")} </span>
         </label>
         <label>
           <input
@@ -331,7 +338,7 @@ let make = () => {
             value="Python"
             onClick={previewProgram(Some(Python))}
           />
-          <span>{React.string("Python")}</span>
+          <span> {React.string("Python")} </span>
         </label>
         <label>
           <input
@@ -342,7 +349,7 @@ let make = () => {
             onClick={previewProgram(None)}
             checked={preview == None}
           />
-          <span>{React.string("off")}</span>
+          <span> {React.string("off")} </span>
         </label>
       </span>
     </>
@@ -351,7 +358,7 @@ let make = () => {
     <> </>
   } else {
     <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
-      <summary> {React.string("Advanced configurations...")} </summary>
+      <summary> {React.string("Advanced configuration:")} </summary>
       <label>
         {React.string("Syntax-flavor = ")}
         {
@@ -446,8 +453,7 @@ let make = () => {
       </menu>
       {switch state {
       | None =>
-        switch preview {
-        | None =>
+        <>
           <p>
             {React.string("To start tracing, click ")}
             <button onClick=onRunClick disabled={is_running}>
@@ -456,9 +462,11 @@ let make = () => {
             </button>
             {React.string(".")}
           </p>
-        | Some(sk) => make_preview(sk, program)
-        }
-
+          {switch preview {
+          | None => <> </>
+          | Some(sk) => make_preview(sk, program)
+          }}
+        </>
       | Some(s) => s.now
       }}
     </section>
