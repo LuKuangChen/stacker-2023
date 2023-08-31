@@ -166,7 +166,7 @@ let make = () => {
     setNNext(_ => 0)
   }
   let onStopClick = _evt => {
-    setState(state => None)
+    setState(_ => None)
   }
   let prevable = switch state {
   | None => false

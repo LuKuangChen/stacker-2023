@@ -104,6 +104,7 @@ type arity =
 
 type runtimeError =
   | UnboundIdentifier(symbol)
+  | RedefinedIdentifier(symbol, string) // the string is the environment id
   | UsedBeforeInitialization(symbol)
   | ExpectButGiven(string, value)
   | ArityMismatch(arity, int)
@@ -150,6 +151,32 @@ type heap = ref<list<value>>
 // hav = Heap-Allocated Values
 let allHavs: ref<list<value>> = ref(list{})
 
+let rec appear_in = (x, ys) => {
+  switch ys {
+  | list{} => false
+  | list{y, ...ys} => x == y || appear_in(x, ys)
+  }
+}
+
+let has_duplicates = (xs: list<symbol>) => {
+  switch xs {
+  | list{} => None
+  | list{x, ...xs} =>
+    if appear_in(x, xs) {
+      Some(x)
+    } else {
+      None
+    }
+  }
+}
+
+let check_duplicate = (xs, env_id) => {
+  switch has_duplicates(xs |> List.fromArray) {
+  | Some(x) => raise(RuntimeError(RedefinedIdentifier(x, env_id)))
+  | None => ()
+  }
+}
+
 let makeTopLevel = (env, xs): environment => {
   // Like extend but the id is hard-coded to be top-level
   let id = "top-level"
@@ -159,21 +186,23 @@ let makeTopLevel = (env, xs): environment => {
   }
   let env = list{frm, ...env}
   allEnvs := list{env, ...allEnvs.contents}
+  check_duplicate(xs, id)
   env
 }
 
 let extend = (env, xs): environment => {
   // if Array.length(xs) == 0 {
-    // env
+  // env
   // } else {
-    let id = newEnvId()
-    let frm = {
-      id: Int.toString(id),
-      content: xs |> Js.Array.map(x => (x, ref(None))),
-    }
-    let env = list{frm, ...env}
-    allEnvs := list{env, ...allEnvs.contents}
-    env
+  let id = newEnvId() |> Int.toString
+  let frm = {
+    id,
+    content: xs |> Js.Array.map(x => (x, ref(None))),
+  }
+  let env = list{frm, ...env}
+  allEnvs := list{env, ...allEnvs.contents}
+  check_duplicate(xs, id)
+  env
   // }
 }
 
@@ -692,15 +721,17 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
 and doBlk = (b, stk): state => {
   let xs = xsOfBlock(b)->Array.map(unann)
   let env = current_env(stk)
-  let env = if (Array.length(xs) == 0) {
+  let env = if Array.length(xs) == 0 {
     env
   } else {
     extend(env, xs)
   }
   let stk = switch stk {
   // tail-call optimization
-  | {topping: list{{ctx: {topping: list{}, base: BdyRet}, env: _}, ...topping}, base} =>
-    {topping, base}
+  | {topping: list{{ctx: {topping: list{}, base: BdyRet}, env: _}, ...topping}, base} => {
+      topping,
+      base,
+    }
   | stk => stk
   }
   transitionBlock(b, env, stk)
@@ -716,8 +747,8 @@ let load = (program: program, randomSeed: string) => {
 
   // now let's get started
   let xs = xsOfTerms(program)
-  let env = makeTopLevel(initialEnv, xs->Array.map(unann))
   try {
+    let env = makeTopLevel(initialEnv, xs->Array.map(unann))
     transitionPrg(program, env)
   } catch {
   | RuntimeError(err) => Terminated(Err(err))

@@ -244,6 +244,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   let string_of_error = err => {
     switch err {
     | UnboundIdentifier(symbol) => `The variable \`${symbol}\` is not defined.`
+    | RedefinedIdentifier(symbol, env_id) => `The variable \`${symbol}\` is defined more than once in the \`@${env_id}\` environment.`
     | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
     | ExpectButGiven(string, _value) => `Expecting a ${string}.`
     | ArityMismatch(_arity, int) =>
