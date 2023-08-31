@@ -149,10 +149,10 @@ let make = () => {
     }
   }
   let (state, setState) = React.useState(_ => {
-    if programAtURL == "" {
+    setProgram(_ => programAtURL)
+    if nNextAtURL < 0 {
       None
     } else {
-      setProgram(_ => programAtURL)
       setNNext(_ => nNextAtURL)
       let s = ref(loadProgram(programAtURL))
       for _ in 1 to nNextAtURL {
@@ -357,7 +357,7 @@ let make = () => {
   let advancedConfiguration = if readOnlyMode {
     <> </>
   } else {
-    <details open_={syntaxAtURL != "" || randomSeedAtURL != ""}>
+    <details>
       <summary> {React.string("Advanced configuration:")} </summary>
       <label>
         {React.string("Syntax-flavor = ")}
@@ -441,7 +441,18 @@ let make = () => {
           </button>
         </li>
         {if readOnlyMode {
-          <> </>
+          <li>
+            <a
+              href={make_url(
+                runtime_syntax->syntax_as_string,
+                "",
+                -1,
+                program,
+                false,
+              )}>
+              {React.string("✎ edit")}
+            </a>
+          </li>
         } else {
           <li>
             <button onClick={onShare(true)} disabled={!is_running}>

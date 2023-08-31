@@ -5,7 +5,7 @@ const urlBase = window.location.href.replace(window.location.search, '');
 const urlParams = new URLSearchParams(queryString);
 export const syntaxAtURL = urlParams.get('syntax') || "";
 export const randomSeedAtURL = urlParams.get('randomSeed') || "";
-export const nNextAtURL = parseInt(urlParams.get('nNext') || "0");
+export const nNextAtURL = parseInt(urlParams.get('nNext') || "-1");
 export const programAtURL = urlParams.get('program') || "";
 export const readOnlyMode = urlParams.get('readOnlyMode') !== null
 export const make_url = (syntax, randomSeed, nNext, program, readOnlyMode) => {
