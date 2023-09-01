@@ -574,6 +574,7 @@ and doEv = (exp: annotated<expression>, stk: stack) =>
       return(v, stk)
     }
   | Let(xes, b) => transitionLet(list{}, xes, b, stk)
+  | Letrec(xes, b) => transitionLetrec(xes, b, stk)
 
   | Bgn(es, e) => transitionBgn(es, e, stk)
 
@@ -584,6 +585,15 @@ and doEv = (exp: annotated<expression>, stk: stack) =>
   | Cnd(ebs, ob) => transitionCnd(ebs, ob, stk)
   | If(e_cnd, e_thn, e_els) => doEv(e_cnd, consCtx(If1((), e_thn, e_els), stk))
   }
+and transitionLetrec = (xes: list<(annotated<symbol>, annotated<expression>)>, b: block, stk: stack) => {
+  let (ts, e) = b
+  let ds = xes -> List.map(((x, e)) => {
+    SMoL.Def(dummy_ann(Var(x, e)))
+  })
+  let ts = list{...ds, ...ts}
+  let b = (ts, e)
+  doBlk(b, stk)
+}
 and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>, b, stk: stack) => {
   switch xes {
   | list{} => {
@@ -718,7 +728,7 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
     doEv(exp, consCtx(App2(f, vs, (), es), stk))
   }
 }
-and doBlk = (b, stk): state => {
+and doBlk = (b: block, stk: stack): state => {
   let xs = xsOfBlock(b)->Array.map(unann)
   let env = current_env(stk)
   let env = if Array.length(xs) == 0 {

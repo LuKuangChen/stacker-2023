@@ -23,31 +23,21 @@ d ::= (defvar x e)
     | (deffun (f x ...) body)
 e ::= c
     | x
-    | (lambda (x ...) body)
-    | (let ([x e] ...) body)
     | (begin e ... e)
     | (set! x e)
     | (if e e e)
     | (cond [e body] ... [else body])
     | (cond [e body] ...)
+    | (lambda (x ...) body)
+    | (let ([x e] ...) body)
+    | (let* ([x e] ...) body)
+    | (letrec ([x e] ...) body)
     | (e e ...)
 body    ::= t ... e
 program ::= t ...
 ```
 
-### Supported primitive operators
-
-| **Operators**         | **Meaning**                              |
-| --------------------- | ---------------------------------------- |
-| `+` `-` `*` `/`       | Arithmetic Operators                     |
-| `=` `<` `>` `<=` `>=` | Number comparison                        |
-| `++`                  | String concatenation                     |
-| `vec`                 | Create a (mutable) vector (a.k.a. array) |
-| `vec-ref`             | Look up a vector element                 |
-| `vec-set!`            | Replace a vector element                 |
-| `vec-len`             | Get the length of a vector               |
-| `eq?`                 | Pointer equality                         |
-
+See [this document](https://docs.google.com/document/d/e/2PACX-1vTMVCrUYliicrunyxftDwv6HVmBeKaRW9-VF9Xh1GUFoHMmomOczz_RRIZXPJoH8WB66x-d4GlRvwuy/pub) for a more detailed description of the language.
 
 ## Limitations
 
@@ -69,6 +59,10 @@ ReScript-React registers tons of unused event handlers to the root
 element. This might raise accessibility problem.
 
 Add list-processing higher-order functions.
+
+`letrec` is interpreted as a block. It might be better to treat them as primitive
+
+`let*` is read as `let`. It might be better to treat them as primitive
 
 ### Know Issues: limitations that we don't plan to (or simply can't) resolve
 

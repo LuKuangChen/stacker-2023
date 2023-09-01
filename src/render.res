@@ -217,9 +217,8 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         let id = id->Int.toString
         <li key className="vec box">
           {blank(`@${id}`)}
-          {React.string(", a vector")}
           <br />
-          {React.string("with contents")}
+          {React.string("vec")}
           {React.array(
             vs
             ->Array.map(string_of_value)
@@ -292,7 +291,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   }
 
   let show_stack = (stk: stack) => {
-    <ol className="box-list" ariaLabel="stack frames, with the oldest at the top">
+    <ol className="box-list the-stack" ariaLabel="stack frames, with the oldest at the top">
       {show_program_frame(-1, stk.base)}
       {React.array(stk.topping->reverse->List.mapWithIndex(show_body_frame)->List.toArray)}
     </ol>
@@ -301,7 +300,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   let show_state = (stack, now, envs, heap) => {
     <article id="stacker-configuration" ariaLabel="the current stacker configuration">
       <section id="stack-and-now">
-        <h1> {React.string("Stack Frames & The Program Counter")} </h1>
+        <h1> {React.string("Stack & Program Counter")} </h1>
         {stack}
         <hr />
         {now}

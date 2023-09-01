@@ -252,7 +252,14 @@ let make = () => {
   } else {
     <>
       <details>
-        <summary> {React.string("Example programs:")} </summary>
+        <summary>
+          {React.string("Example programs (")}
+          <a
+            href="https://docs.google.com/document/d/e/2PACX-1vTMVCrUYliicrunyxftDwv6HVmBeKaRW9-VF9Xh1GUFoHMmomOczz_RRIZXPJoH8WB66x-d4GlRvwuy/pub">
+            {React.string("The SMoL Language Reference")}
+          </a>
+          {React.string("):")}
+        </summary>
         <menu ariaLabel="a list of example programs">
           <li>
             <button
@@ -411,7 +418,7 @@ let make = () => {
           } else {
             Lisp
           }}
-          program={if (is_running && runtime_syntax != Lisp) {
+          program={if is_running && runtime_syntax != Lisp {
             program->terms_of_string->Render.adjust_syntax(runtime_syntax).string_of_program
           } else {
             program
@@ -442,14 +449,7 @@ let make = () => {
         </li>
         {if readOnlyMode {
           <li>
-            <a
-              href={make_url(
-                runtime_syntax->syntax_as_string,
-                "",
-                -1,
-                program,
-                false,
-              )}>
+            <a href={make_url(runtime_syntax->syntax_as_string, "", -1, program, false)}>
               {React.string("✎ edit")}
             </a>
           </li>

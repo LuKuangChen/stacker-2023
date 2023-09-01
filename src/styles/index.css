@@ -179,7 +179,37 @@ ol.box-list>li,
     display: block;
     padding: 1em;
     border-radius: 1ex;
+}
+
+.box {
+    width: max-content;
+}
+.stack-frame.box {
+    width: unset;
+}
+
+ol.box-list>li:not(:first-of-type),
+.box:not(:first-of-type) {
     margin-top: 1ex;
+}
+
+/* except for stack-frames */
+ol.box-list>li.stack-frame,
+.box.stack-frame {
+    border-radius: 0;
+}
+
+ol.box-list>li.stack-frame,
+.box.stack-frame {
+    margin-top: 0;
+    border-top: 1px solid black;
+}
+
+/* the stack wrap boxes in a black box */
+ol.box-list.the-stack {
+    background-color: black;
+    padding: 1ex;
+    width: max-content;
 }
 
 .parse-feedback {
@@ -200,4 +230,17 @@ ol.box-list>li,
 
 details>summary~* {
     margin-bottom: 0.5ex;
+}
+
+#stacker-configuration > section > h1 {
+    margin-bottom: 1ex;
+}
+
+/* having a border looks dumb but slightly more readable I (KC) think */
+.box {
+    border: 1px solid black;
+}
+
+section {
+    transition: width 2s;
 }
