@@ -411,7 +411,7 @@ let make = () => {
           } else {
             Lisp
           }}
-          program={if is_running {
+          program={if (is_running && runtime_syntax != Lisp) {
             program->terms_of_string->Render.adjust_syntax(runtime_syntax).string_of_program
           } else {
             program
