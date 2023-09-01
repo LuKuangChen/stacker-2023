@@ -101,11 +101,12 @@ let stringify_context = (stringify: stringifier) => {
       list{
         ...allVals->List.fromArray->List.map(string_of_value),
         string_of_program(block_of_program_context(placeholder, ctx))})
-  let string_of_fun = (f, xs, body) => {
-    switch f {
-    | None => string_of_expr(dummy_ann(Lam(xs, body)))
-    | Some(f) => string_of_def(dummy_ann((Fun(dummy_ann(f), xs, body): definition)))
-    }
+  let string_of_fun = (_f, xs, body) => {
+    string_of_expr(dummy_ann(Lam(xs, body)))
+    // switch f {
+    // | None => string_of_expr(dummy_ann(Lam(xs, body)))
+    // | Some(f) => string_of_def(dummy_ann((Fun(dummy_ann(f), xs, body): definition)))
+    // }
   }
 
   (expr_of_value, string_of_value, string_of_fun, string_of_body_context, string_of_program_context)
@@ -199,7 +200,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
               <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
             </summary>
-            <p> {blank(string_of_fun(name.contents, xs |> List.fromArray, body))} </p>
+            {blank(string_of_fun(name.contents, xs |> List.fromArray, body))}
           </details>
           {React.string("with environment ")}
           {show_env(env)}
