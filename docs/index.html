@@ -13,7 +13,6 @@
     <div id="root"></div>
     <dialog id="pop-up-for-sharing">
         <textarea id="sharable-url" cols="50" rows="5"></textarea>
-        <button onclick="copySharableURL()">Copy</button>
         <button onclick="closeDialog()">Close</button>
     </dialog>
     <script>
@@ -38,6 +37,7 @@
             copyText.setSelectionRange(0, 99999); // For mobile devices
             // Copy the text inside the text field
             navigator.clipboard.writeText(copyText.value);
+            alert("The sharing URL is copied!")
         }
     </script>
     <script src="main.js"></script>
