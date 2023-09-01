@@ -22,6 +22,7 @@
             let elmDialog = document.getElementById("pop-up-for-sharing");
             elmInput.innerText = value;
             elmDialog.showModal();
+            setTimeout(copySharableURL, 0);
         }
 
         function closeDialog() {
