@@ -97,10 +97,13 @@ let stringify_context = (stringify: stringifier) => {
 
   let string_of_body_context = ctx => string_of_block(block_of_body_context(placeholder, ctx))
   let string_of_program_context = ctx =>
-    String.concat("\n",
+    String.concat(
+      "\n",
       list{
         ...allVals->List.fromArray->List.map(string_of_value),
-        string_of_program(block_of_program_context(placeholder, ctx))})
+        string_of_program(block_of_program_context(placeholder, ctx)),
+      },
+    )
   let string_of_fun = (_f, xs, body) => {
     string_of_expr(dummy_ann(Lam(xs, body)))
     // switch f {
@@ -201,9 +204,12 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
             </summary>
             {blank(string_of_fun(name.contents, xs |> List.fromArray, body))}
+            <br />
           </details>
-          {React.string("with environment ")}
-          {show_env(env)}
+          <span>
+            {React.string("with environment ")}
+            {show_env(env)}
+          </span>
         </li>
       }
 
@@ -245,7 +251,8 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   let string_of_error = err => {
     switch err {
     | UnboundIdentifier(symbol) => `The variable \`${symbol}\` is not defined.`
-    | RedefinedIdentifier(symbol, env_id) => `The variable \`${symbol}\` is defined more than once in the \`@${env_id}\` environment.`
+    | RedefinedIdentifier(symbol, env_id) =>
+      `The variable \`${symbol}\` is defined more than once in the \`@${env_id}\` environment.`
     | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
     | ExpectButGiven(string, _value) => `Expecting a ${string}.`
     | ArityMismatch(_arity, int) =>
@@ -329,11 +336,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | AppPrming(f, vs) =>
       <p className="now box calling">
         {React.string("Calling ")}
-        {blank(
-          dummy_ann(
-            (AppPrm(f, vs->List.map(expr_of_value)): expression),
-          )->string_of_expr,
-        )}
+        {blank(dummy_ann((AppPrm(f, vs->List.map(expr_of_value)): expression))->string_of_expr)}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -361,7 +364,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       <p className="now box replacing">
         {React.string("Rebinding a variable ")}
         <br />
-        {blank(Set(x, expr_of_value(v))->dummy_ann->(x=>(Exp(x) : term))->string_of_term)}
+        {blank(Set(x, expr_of_value(v))->dummy_ann->((x): term => Exp(x))->string_of_term)}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -384,7 +387,8 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
             },
           )
           ->dummy_ann
-          ->(x=>(Exp(x) : term))->string_of_term,
+          ->((x): term => Exp(x))
+          ->string_of_term,
         )}
         <br />
         {React.string("in context ")}
