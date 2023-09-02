@@ -109,6 +109,7 @@ type runtimeError =
   | ExpectButGiven(string, value)
   | ArityMismatch(arity, int)
   | OutOfBound(int, int)
+  | DivisionByZero
   | UserRaised(string)
 exception RuntimeError(runtimeError)
 
@@ -439,7 +440,13 @@ and delta = (p, vs) =>
   | (Add, list{v, ...vs}) => return(deltaNum1((. a, b) => a +. b, v, vs))
   | (Sub, list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => a -. b, v1, v2, vs))
   | (Mul, list{v, ...vs}) => return(deltaNum1((. a, b) => a *. b, v, vs))
-  | (Div, list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => a /. b, v1, v2, vs))
+  | (Div, list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => {
+      if (b == 0.) {
+        raise(RuntimeError(DivisionByZero))
+      } else {
+        a /. b
+      }
+    }, v1, v2, vs))
   | (Lt, list{v, ...vs}) => return(deltaCmp((a, b) => a < b, v, vs))
   | (Eq, list{v, ...vs}) => return(deltaEq(eqv2, v, vs))
   // | (Eq, list{v, ...vs}) => return(deltaCmp((a, b) => a == b, v, vs))

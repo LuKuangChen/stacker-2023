@@ -260,6 +260,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       `Expecting an index less than the length of the vector (${Int.toString(
           length,
         )}), found ${Int.toString(index)}.`
+    | DivisionByZero => `Division by zero`
     | UserRaised(message) => message
     }
   }
