@@ -2,6 +2,15 @@
 <html lang="en">
 
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3TS31Q911Y"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-3TS31Q911Y');
+    </script>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,7 +46,7 @@
             copyText.setSelectionRange(0, 99999); // For mobile devices
             // Copy the text inside the text field
             navigator.clipboard.writeText(copyText.value);
-            alert("The sharing URL is copied!")
+            alert("The sharing URL is copied!");
         }
     </script>
     <script src="main.js"></script>
