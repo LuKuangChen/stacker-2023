@@ -253,9 +253,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | RedefinedIdentifier(symbol, env_id) =>
       `The variable \`${symbol}\` is defined more than once in the \`@${env_id}\` environment.`
     | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
-    | ExpectButGiven(string, _value) => `Expecting a ${string}.`
-    | ArityMismatch(_arity, int) =>
-      `Expecting a function that accept ${Int.toString(int)} arguments.`
+    | ExpectButGiven(string, value) => `Expecting a ${string}, given ${string_of_value(value)}.`
+    | ArityMismatch(arity, int) =>
+      `Expecting a function that accept ${Int.toString(int)} arguments, given a function that takes ${Arity.toString(arity)} arguments.`
     | OutOfBound(length, index) =>
       `Expecting an index less than the length of the vector (${Int.toString(
           length,

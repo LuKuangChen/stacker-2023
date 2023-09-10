@@ -98,9 +98,18 @@ let print = v => {
   stdout.contents = list{Val(v), ...stdout.contents}
 }
 
-type arity =
-  | AtLeast(int)
-  | Exactly(int)
+module Arity = {
+  type t =
+    | AtLeast(int)
+    | Exactly(int)
+  let toString = arity => {
+    switch arity {
+      | AtLeast(i) => `${i |> Int.toString} or more`
+      | Exactly(i) => `${i |> Int.toString}`
+    }
+  }
+}
+type arity = Arity.t
 
 type runtimeError =
   | UnboundIdentifier(symbol)
@@ -353,6 +362,16 @@ and asVec = v =>
   | Vec(id, f) => (id, f)
   | _else => raise(RuntimeError(ExpectButGiven("vector", v)))
   }
+and asPair = v =>
+  switch v {
+  | Vec(id, es) => {
+    if (Array.length(es) != 2) {
+      raise(RuntimeError(ExpectButGiven("pair", v)))
+    }
+    (id, es)
+  }
+  | _else => raise(RuntimeError(ExpectButGiven("vector", v)))
+  }
 
 let deltaNum1 = (f, v, vs): value => {
   open Js.List
@@ -401,7 +420,7 @@ let deltaEq = (cmp, v, vs): value => {
 
 let arityOf = p =>
   switch p {
-  | Add => AtLeast(1)
+  | Add => Arity.AtLeast(1)
   | Sub => AtLeast(2)
   | Mul => AtLeast(1)
   | Div => AtLeast(2)
@@ -435,18 +454,24 @@ let rec return = (v: value, s: stack): state => {
     continueBody(v, ctx, env, {topping, base})
   }
 }
+and make_vector = vs => {
+  let id = newHavId()
+  let v = Vec(id, List.toArray(vs))
+  allHavs := list{v, ...allHavs.contents}
+  return(v)
+}
 and delta = (p, vs) =>
   switch (p, vs) {
   | (Add, list{v, ...vs}) => return(deltaNum1((. a, b) => a +. b, v, vs))
   | (Sub, list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => a -. b, v1, v2, vs))
   | (Mul, list{v, ...vs}) => return(deltaNum1((. a, b) => a *. b, v, vs))
   | (Div, list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => {
-      if (b == 0.) {
-        raise(RuntimeError(DivisionByZero))
-      } else {
-        a /. b
-      }
-    }, v1, v2, vs))
+        if b == 0. {
+          raise(RuntimeError(DivisionByZero))
+        } else {
+          a /. b
+        }
+      }, v1, v2, vs))
   | (Lt, list{v, ...vs}) => return(deltaCmp((a, b) => a < b, v, vs))
   | (Eq, list{v, ...vs}) => return(deltaEq(eqv2, v, vs))
   // | (Eq, list{v, ...vs}) => return(deltaCmp((a, b) => a == b, v, vs))
@@ -462,11 +487,6 @@ and delta = (p, vs) =>
       return(v)
     }
 
-  | (VecLen, list{v}) => {
-      let (_id, vs) = asVec(v)
-      return(Con(Num(vs->Array.length->Int.toFloat)))
-    }
-
   | (VecRef, list{v_vec, v_ind}) => {
       let (_id, vs) = asVec(v_vec)
       let v_ind = asNum(v_ind)->Float.toInt
@@ -474,6 +494,11 @@ and delta = (p, vs) =>
       | None => raise(RuntimeError(OutOfBound(Array.length(vs), v_ind)))
       | Some(v) => return(v)
       }
+    }
+
+  | (VecLen, list{v}) => {
+      let (_id, vs) = asVec(v)
+      return(Con(Num(vs->Array.length->Int.toFloat)))
     }
 
   | (VecSet, list{v_vec, v_ind, v_val}) => {
@@ -485,6 +510,38 @@ and delta = (p, vs) =>
   | (Err, list{v}) => {
       let v = asStr(v)
       _stk => Terminated(Err(UserRaised(v)))
+    }
+
+  | (PairNew, list{v1, v2}) => make_vector(list{v1, v2})
+
+  | (PairRefLeft, list{v}) => {
+      let (_id, vs) = asPair(v)
+      let v_ind = 0
+      switch vs[v_ind] {
+      | None => raise(Impossible("we have checked that this value is a pair"))
+      | Some(v) => return(v)
+      }
+    }
+
+  | (PairRefRight, list{v}) => {
+      let (_id, vs) = asPair(v)
+      let v_ind = 1
+      switch vs[v_ind] {
+      | None => raise(Impossible("we have checked that this value is a pair"))
+      | Some(v) => return(v)
+      }
+    }
+
+  | (PairSetLeft, list{v_vec, v_val}) => {
+      let v_vec = asPair(v_vec)
+      let v_ind = 0
+      stk => Continuing(Reducing(VecSetting(v_vec, v_ind, v_val), stk))
+    }
+
+  | (PairSetRight, list{v_vec, v_val}) => {
+      let v_vec = asPair(v_vec)
+      let v_ind = 1
+      stk => Continuing(Reducing(VecSetting(v_vec, v_ind, v_val), stk))
     }
 
   | _otherwise => raise(RuntimeError(ArityMismatch(arityOf(p), List.length(vs))))
@@ -592,9 +649,13 @@ and doEv = (exp: annotated<expression>, stk: stack) =>
   | Cnd(ebs, ob) => transitionCnd(ebs, ob, stk)
   | If(e_cnd, e_thn, e_els) => doEv(e_cnd, consCtx(If1((), e_thn, e_els), stk))
   }
-and transitionLetrec = (xes: list<(annotated<symbol>, annotated<expression>)>, b: block, stk: stack) => {
+and transitionLetrec = (
+  xes: list<(annotated<symbol>, annotated<expression>)>,
+  b: block,
+  stk: stack,
+) => {
   let (ts, e) = b
-  let ds = xes -> List.map(((x, e)) => {
+  let ds = xes->List.map(((x, e)) => {
     SMoL.Def(dummy_ann(Var(x, e)))
   })
   let ts = list{...ds, ...ts}
