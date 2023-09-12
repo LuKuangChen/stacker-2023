@@ -1,5 +1,7 @@
 # Stacker
 
+[Take me to a running stacker](https://lukuangchen.github.io/stacker-2023)
+
 This tool presents how programs work. It focuses on presenting on the
 (call) stack, environments, and the heap. Such program must be written
 in SMoL, an educational language that support many language features
