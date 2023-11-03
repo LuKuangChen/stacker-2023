@@ -738,7 +738,7 @@ and doApp = (v, vs, stk): state => {
   | Prm(p) => delta(p, vs, stk)
   | Udf(_id, _name, _ann, xs, b, env) =>
     if Js.Array.length(xs) == Js.List.length(vs) {
-      let env = extend(env, Js.Array.concat(xs, xsOfBlock(b))->Array.map(unann))
+      let env = extend(env, Array.concat(xs, xsOfBlock(b))->Array.map(unann))
 
       {
         xs |> Js.Array.forEachi((x, i) => {
