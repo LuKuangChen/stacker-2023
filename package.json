@@ -11,8 +11,8 @@
     "res:clean": "rescript clean",
     "rescript": "rescript build -w",
     "webpack": "npx webpack --mode production",
-    "publicize": "rm -rf ./docs && cp -r ./dist ./docs",
-    "publicize-as-testing": "rm -rf ./docs/testing && cp -r ./dist ./docs/testing",
+    "publish": "rm -rf ./docs && cp -r ./dist ./docs",
+    "publish-as-testing": "rm -rf ./docs/testing && cp -r ./dist ./docs/testing",
     "localhost": "python -m http.server --directory dist"
   },
   "keywords": [

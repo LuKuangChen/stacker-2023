@@ -85,6 +85,7 @@ let initialEnv: environment = list{
       ("set-left!", ref(Some((VFun(Prm(PairSetLeft)): value)))),
       ("set-right!", ref(Some((VFun(Prm(PairSetRight)): value)))),
       ("error", ref(Some((VFun(Prm(Err)): value)))),
+      ("not", ref(Some((VFun(Prm(Not)): value)))),
     ],
   },
 }
@@ -436,6 +437,7 @@ let arityOf = p =>
   | VecLen => Exactly(1)
   | Eqv => AtLeast(2)
   | Err => Exactly(1)
+  | Not => Exactly(1)
   | PairNew => Exactly(2)
   | PairRefLeft | PairRefRight => Exactly(1)
   | PairSetLeft | PairSetRight => Exactly(2)
@@ -510,6 +512,11 @@ and delta = (p, vs) =>
   | (Err, list{v}) => {
       let v = asStr(v)
       _stk => Terminated(Err(UserRaised(v)))
+    }
+
+  | (Not, list{v}) => {
+      let v = asLgc(v)
+      return(Con(Lgc(! v)))
     }
 
   | (PairNew, list{v1, v2}) => make_vector(list{v1, v2})
