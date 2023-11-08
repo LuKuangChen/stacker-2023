@@ -9,6 +9,7 @@ expression {
   kw<"else"> |
   kw<"begin"> |
   kw<"lambda"> |
+  kw<"λ"> |
   Identifier |
   String |
   Boolean |

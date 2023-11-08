@@ -22,6 +22,7 @@ let parserWithMetadata = parser.configure({
       "else": t.keyword,
       "begin": t.keyword,
       "lambda": t.keyword,
+      "λ": t.keyword,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit
@@ -56,6 +57,7 @@ export const smolCompletion = smolLanguage.data.of({
     { label: "else", type: "keyword" },
     { label: "begin", type: "keyword" },
     { label: "lambda", type: "keyword" },
+    { label: "λ", type: "keyword" },
     { label: "+", type: "function" },
     { label: "-", type: "function" },
     { label: "*", type: "function" },
