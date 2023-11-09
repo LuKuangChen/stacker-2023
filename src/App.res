@@ -56,7 +56,7 @@ type state = {
 type randomSeedConfig = {isSet: bool, randomSeed: string}
 
 let make_preview = (sk, program) => {
-  switch program->terms_of_string {
+  switch program->terms_of_string |> Render.adjust_syntax(sk).unsafe_string_of_program {
   | program =>
     <>
       <span>
@@ -66,7 +66,7 @@ let make_preview = (sk, program) => {
       </span>
       <CodeEditor
         syntax={sk}
-        program={program |> Render.adjust_syntax(sk).unsafe_string_of_program}
+        program={program}
         readOnly={true}
         setProgram={_ => ()}
       />
