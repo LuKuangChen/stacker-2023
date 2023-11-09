@@ -21,15 +21,65 @@ let blank = s => {
   <code className="blank"> {React.string(s)} </code>
 }
 
-let adjust_syntax = (sk): stringifier => {
-  switch sk {
-  | Lisp => stringify
-  | JavaScript => stringifyAsJS
-  | Python => stringifyAsPY
+let safe_f = (string_of, safe_string_of, src) => {
+  switch string_of(src) {
+  | dst => dst
+  | exception SMoL.ParseError(err) => {
+      let parseFeedback = stringOfParseError(err)
+      `;; ${parseFeedback}\n${safe_string_of(src)}`
+    }
+  | exception SMoL.TranslationError(err) => `;; ${err}\n${safe_string_of(src)}`
   }
 }
 
-let stringify_context = (stringify: stringifier) => {
+type safe_stringifier = {
+  string_of_result: SMoL.result => string,
+  string_of_expr: annotated<expression> => string,
+  string_of_def: annotated<definition> => string,
+  string_of_term: term => string,
+  string_of_block: block => string,
+  string_of_program: program => string,
+  unsafe_string_of_result: SMoL.result => string,
+  unsafe_string_of_expr: annotated<expression> => string,
+  unsafe_string_of_def: annotated<definition> => string,
+  unsafe_string_of_term: term => string,
+  unsafe_string_of_block: block => string,
+  unsafe_string_of_program: program => string,
+}
+let make_safe_stringifier = (stringifier: stringifier) => {
+  let {
+    string_of_result,
+    string_of_expr,
+    string_of_def,
+    string_of_term,
+    string_of_block,
+    string_of_program,
+  } = stringifier
+  {
+    string_of_result: safe_f(string_of_result, SMoL.stringify.string_of_result),
+    string_of_expr: safe_f(string_of_expr, SMoL.stringify.string_of_expr),
+    string_of_def: safe_f(string_of_def, SMoL.stringify.string_of_def),
+    string_of_term: safe_f(string_of_term, SMoL.stringify.string_of_term),
+    string_of_block: safe_f(string_of_block, SMoL.stringify.string_of_block),
+    string_of_program: safe_f(string_of_program, SMoL.stringify.string_of_program),
+    unsafe_string_of_result: string_of_result,
+    unsafe_string_of_expr: string_of_expr,
+    unsafe_string_of_def: string_of_def,
+    unsafe_string_of_term: string_of_term,
+    unsafe_string_of_block: string_of_block,
+    unsafe_string_of_program: string_of_program,
+  }
+}
+
+let adjust_syntax = (sk): safe_stringifier => {
+  switch sk {
+  | Lisp => make_safe_stringifier(stringify)
+  | JavaScript => make_safe_stringifier(stringifyAsJS)
+  | Python => make_safe_stringifier(stringifyAsPY)
+  }
+}
+
+let stringify_context = (stringify: safe_stringifier) => {
   let {
     string_of_result,
     string_of_expr,
@@ -255,7 +305,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
     | ExpectButGiven(string, value) => `Expecting a ${string}, given ${string_of_value(value)}.`
     | ArityMismatch(arity, int) =>
-      `Expecting a function that accept ${Int.toString(int)} arguments, given a function that takes ${Arity.toString(arity)} arguments.`
+      `Expecting a function that accept ${Int.toString(
+          int,
+        )} arguments, given a function that takes ${Arity.toString(arity)} arguments.`
     | OutOfBound(length, index) =>
       `Expecting an index less than the length of the vector (${Int.toString(
           length,

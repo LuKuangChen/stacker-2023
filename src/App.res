@@ -66,7 +66,7 @@ let make_preview = (sk, program) => {
       </span>
       <CodeEditor
         syntax={sk}
-        program={program->Render.adjust_syntax(sk).string_of_program}
+        program={program |> Render.adjust_syntax(sk).unsafe_string_of_program}
         readOnly={true}
         setProgram={_ => ()}
       />
@@ -74,6 +74,9 @@ let make_preview = (sk, program) => {
   | exception SMoL.ParseError(err) => {
       let parseFeedback = stringOfParseError(err)
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
+    }
+  | exception SMoL.TranslationError(err) => {
+      <span className="parse-feedback"> {React.string(err)} </span>
     }
   }
 }
@@ -134,6 +137,10 @@ let make = () => {
     switch parseSMoL(program) {
     | exception SMoL.ParseError(err) => {
         setParseFeedback(_ => stringOfParseError(err))
+        None
+      }
+    | exception SExpression.ParseError(err) => {
+        setParseFeedback(_ => SExpression.Error.toString(err))
         None
       }
 
@@ -419,7 +426,18 @@ let make = () => {
             Lisp
           }}
           program={if is_running && runtime_syntax != Lisp {
+            Js.Console.log("I am looking at a non-Lispy syntax, right?")
             program->terms_of_string->Render.adjust_syntax(runtime_syntax).string_of_program
+            // switch (program
+            // ->terms_of_string
+            // ->Render.adjust_syntax(runtime_syntax).string_of_program) {
+            // | translation => translation
+            // // | exception SMoL.ParseError(err) => {
+            // //     let parseFeedback = stringOfParseError(err)
+            // //     `;; ${parseFeedback}\n${program}`
+            // //   }
+            // // | exception SMoL.TranslationError(err) => `;; ${err}\n${program}`
+            // }
           } else {
             program
           }}
