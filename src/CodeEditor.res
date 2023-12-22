@@ -28,7 +28,7 @@ let make = (~syntax, ~program, ~readOnly, ~setProgram) => {
     setProgram(_ => s)
   }
   switch syntax {
-  | Render.Lisp => <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  | Render.Lispy => <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   | JavaScript => <JavaScriptCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   | Python => <PythonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   }

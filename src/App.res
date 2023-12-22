@@ -14,14 +14,17 @@ exception Impossible
 
 let parseSyntax = newValue =>
   switch newValue {
-  | "SMoL" => Some(Render.Lisp)
+  | "SMoL" => Some(Render.Lispy)
+  | "Lispy" => Some(Render.Lispy)
+  | "JS" => Some(JavaScript)
   | "JavaScript" => Some(JavaScript)
+  | "PY" => Some(Python)
   | "Python" => Some(Python)
   | _ => None
   }
 let syntax_as_string = sk =>
   switch sk {
-  | Render.Lisp => "SMoL"
+  | Render.Lispy => "Lispy"
   | JavaScript => "JavaScript"
   | Python => "Python"
   }
@@ -109,7 +112,7 @@ let make = () => {
     }
   })
   let (preview: option<Render.syntax_kind>, setPreview) = React.useState(_ => None)
-  let runtime_syntax = Option.orElse(syntax, preview)->Option.getWithDefault(Render.Lisp)
+  let runtime_syntax = Option.orElse(syntax, preview)->Option.getWithDefault(Render.Lispy)
   let forward = s => {
     switch s {
     | None => raise(Impossible)
@@ -384,8 +387,8 @@ let make = () => {
             <option selected={None == syntax} value="auto">
               {React.string(`Auto (${runtime_syntax |> syntax_as_string})`)}
             </option>
-            <option selected={Some(Render.Lisp) == syntax} value="SMoL">
-              {React.string("SMoL")}
+            <option selected={Some(Render.Lispy) == syntax} value="Lispy">
+              {React.string("Lispy")}
             </option>
             <option selected={Some(Render.JavaScript) == syntax} value="JavaScript">
               {React.string("JavaScript")}
@@ -423,9 +426,9 @@ let make = () => {
           syntax={if is_running {
             runtime_syntax
           } else {
-            Lisp
+            Lispy
           }}
-          program={if is_running && runtime_syntax != Lisp {
+          program={if is_running && runtime_syntax != Lispy {
             Js.Console.log("I am looking at a non-Lispy syntax, right?")
             program->terms_of_string->Render.adjust_syntax(runtime_syntax).string_of_program
             // switch (program

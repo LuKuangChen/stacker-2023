@@ -11,7 +11,7 @@ open SExpression
 open Runtime
 
 type syntax_kind =
-  | Lisp
+  | Lispy
   | JavaScript
   | Python
 
@@ -73,7 +73,7 @@ let make_safe_stringifier = (stringifier: stringifier) => {
 
 let adjust_syntax = (sk): safe_stringifier => {
   switch sk {
-  | Lisp => make_safe_stringifier(stringify)
+  | Lispy => make_safe_stringifier(stringify)
   | JavaScript => make_safe_stringifier(stringifyAsJS)
   | Python => make_safe_stringifier(stringifyAsPY)
   }
