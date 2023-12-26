@@ -41,6 +41,20 @@ program ::= t ...
 
 See [this document](https://docs.google.com/document/d/e/2PACX-1vTMVCrUYliicrunyxftDwv6HVmBeKaRW9-VF9Xh1GUFoHMmomOczz_RRIZXPJoH8WB66x-d4GlRvwuy/pub) for a more detailed description of the language.
 
+## API
+
+All parameters are optional.
+
+| (URL) Parameter | Type | Meaning |
+| - | - | - |
+| `program` | String | the program to run, written in the Lispy syntax |
+| `syntax` | `Lispy` or `JS` or `JavaScript` or `PY` or `Python` | the syntax in which to present everything | 
+| `nNext` | Nonnegative Integer | simulate clicking the `Next` button `nNext` times |
+| `randomSeed` | String | the seed used to generate heap addresses |
+| `readOnlyMode` | Anything | when this parameter is set, stacker will present a much simpler UI that is just enough for reading the trace |
+
+To see examples of parameters, you can run programs in the stacker and then click the share buttons.
+
 ## Limitations
 
 ### Potential Problems: limitations that might exist, but we are not sure
