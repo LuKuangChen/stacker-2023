@@ -24,69 +24,68 @@ let blank = s => {
 let safe_f = (string_of, safe_string_of, src) => {
   switch string_of(src) {
   | dst => dst
-  | exception SMoL.ParseError(err) => {
-      let parseFeedback = stringOfParseError(err)
+  | exception SMoL.SMoLParseError(err) => {
+      let parseFeedback = SMoL.ParseError.toString(err)
       `;; ${parseFeedback}\n${safe_string_of(src)}`
     }
-  | exception SMoL.TranslationError(err) => `;; ${err}\n${safe_string_of(src)}`
+  | exception SMoL.SMoLPrintError(err) => `;; ${err}\n${safe_string_of(src)}`
   }
 }
 
-type safe_stringifier = {
-  string_of_result: SMoL.result => string,
-  string_of_expr: annotated<expression> => string,
-  string_of_def: annotated<definition> => string,
+type stringifier = {
   string_of_term: term => string,
   string_of_block: block => string,
   string_of_program: program => string,
-  unsafe_string_of_result: SMoL.result => string,
-  unsafe_string_of_expr: annotated<expression> => string,
-  unsafe_string_of_def: annotated<definition> => string,
-  unsafe_string_of_term: term => string,
-  unsafe_string_of_block: block => string,
+}
+type safe_stringifier = {
+  string_of_value: value => string,
+  string_of_expr: annotated<expression> => string,
+  string_of_term: term => string,
+  string_of_block: block => string,
+  string_of_program: program => string,
   unsafe_string_of_program: program => string,
 }
 let make_safe_stringifier = (stringifier: stringifier) => {
-  let {
-    string_of_result,
-    string_of_expr,
-    string_of_def,
-    string_of_term,
-    string_of_block,
-    string_of_program,
-  } = stringifier
+  let {string_of_term, string_of_block, string_of_program} = stringifier
   {
-    string_of_result: safe_f(string_of_result, SMoL.stringify.string_of_result),
-    string_of_expr: safe_f(string_of_expr, SMoL.stringify.string_of_expr),
-    string_of_def: safe_f(string_of_def, SMoL.stringify.string_of_def),
-    string_of_term: safe_f(string_of_term, SMoL.stringify.string_of_term),
-    string_of_block: safe_f(string_of_block, SMoL.stringify.string_of_block),
-    string_of_program: safe_f(string_of_program, SMoL.stringify.string_of_program),
-    unsafe_string_of_result: string_of_result,
-    unsafe_string_of_expr: string_of_expr,
-    unsafe_string_of_def: string_of_def,
-    unsafe_string_of_term: string_of_term,
-    unsafe_string_of_block: string_of_block,
+    string_of_value: printValue,
+    string_of_expr: safe_f(x => string_of_term(Exp(x)), x => SMoL.SMoLPrinter.printTerm(Exp(x))),
+    string_of_term: safe_f(string_of_term, SMoL.SMoLPrinter.printTerm),
+    string_of_block: safe_f(string_of_block, SMoL.SMoLPrinter.printBlock),
+    string_of_program: safe_f(string_of_program, SMoL.SMoLPrinter.printProgram),
     unsafe_string_of_program: string_of_program,
   }
 }
 
 let adjust_syntax = (sk): safe_stringifier => {
   switch sk {
-  | Lispy => make_safe_stringifier(stringify)
-  | JavaScript => make_safe_stringifier(stringifyAsJS)
-  | Python => make_safe_stringifier(stringifyAsPY)
+  | Lispy =>
+    make_safe_stringifier({
+      string_of_term: SMoLPrinter.printTerm,
+      string_of_block: SMoLPrinter.printBlock,
+      string_of_program: SMoLPrinter.printProgram,
+    })
+  | JavaScript =>
+    make_safe_stringifier({
+      string_of_term: JSPrinter.printTerm,
+      string_of_block: JSPrinter.printBlock,
+      string_of_program: JSPrinter.printProgram,
+    })
+  | Python =>
+    make_safe_stringifier({
+      string_of_term: PYPrinter.printTerm,
+      string_of_block: PYPrinter.printBlock,
+      string_of_program: PYPrinter.printProgram,
+    })
   }
 }
 
 let stringify_context = (stringify: safe_stringifier) => {
-  let {
-    string_of_result,
-    string_of_expr,
-    string_of_def,
-    string_of_block,
-    string_of_program,
-  } = stringify
+  let {string_of_value, string_of_expr, string_of_block, string_of_program} = stringify
+
+  let observe = (v: value): annotated<expression> => {
+    dummy_ann(Ref(dummy_ann(string_of_value(v))))
+  }
 
   let interp_ctx = (ctx, any: annotated<expression>): annotated<expression> =>
     dummy_ann(
@@ -110,8 +109,6 @@ let stringify_context = (stringify: safe_stringifier) => {
     | BdyRet => (list{}, any)
     }
   }
-
-  let string_of_value = v => string_of_result(result_of_value(v))
 
   let expr_of_value = (v: value): annotated<expression> => {
     dummy_ann(Ref(dummy_ann(string_of_value(v))))
@@ -156,10 +153,6 @@ let stringify_context = (stringify: safe_stringifier) => {
     )
   let string_of_fun = (_f, xs, body) => {
     string_of_expr(dummy_ann(Lam(xs, body)))
-    // switch f {
-    // | None => string_of_expr(dummy_ann(Lam(xs, body)))
-    // | Some(f) => string_of_def(dummy_ann((Fun(dummy_ann(f), xs, body): definition)))
-    // }
   }
 
   (expr_of_value, string_of_value, string_of_fun, string_of_body_context, string_of_program_context)

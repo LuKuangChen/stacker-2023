@@ -33,8 +33,6 @@ type rec environmentFrame = {
 and environment = list<environmentFrame>
 and vector = (int, array<value>)
 and function =
-  // primitives
-  | Prm(primitive)
   // User-Defined Functions
   | Udf(int, ref<option<string>>, srcrange, array<annotated<symbol>>, block, environment)
 and value =
@@ -45,47 +43,42 @@ and value =
   // Vectors
   | Vec(vector)
 
-let result_of_value = (v: value) => {
+let printValue = (v :value) => {
   switch v {
-  | VFun(Prm(prm)) => PrmFun(prm)
-  | Con(c) => Con(c)
-  | VFun(Udf(addr, _, _, _, _, _)) => Fun(addr)
-  | Vec((addr, _)) => Vec(addr)
+    | Con(constant) => SMoLPrinter.printTerm(Exp(dummy_ann(Con(constant) : expression)))
+    | VFun(Udf(id, _, _, _, _, _)) => `@${id |> Int.toString}`
+    | Vec(id, _) => `@${id |> Int.toString}`
   }
-}
-
-let observe = (v: value): annotated<expression> => {
-  dummy_ann(Ref(dummy_ann(v->result_of_value->stringify.string_of_result)))
 }
 
 let initialEnv: environment = list{
   {
     id: "primordial-env",
     content: [
-      ("+", ref(Some((VFun(Prm(Add)): value)))),
-      ("-", ref(Some((VFun(Prm(Sub)): value)))),
-      ("*", ref(Some((VFun(Prm(Mul)): value)))),
-      ("/", ref(Some((VFun(Prm(Div)): value)))),
-      ("<", ref(Some((VFun(Prm(Lt)): value)))),
-      ("=", ref(Some((VFun(Prm(Eqv)): value)))),
-      (">", ref(Some((VFun(Prm(Gt)): value)))),
-      ("<=", ref(Some((VFun(Prm(Le)): value)))),
-      (">=", ref(Some((VFun(Prm(Ge)): value)))),
-      ("!=", ref(Some((VFun(Prm(Ne)): value)))),
-      ("eq?", ref(Some((VFun(Prm(Eqv)): value)))),
-      ("vec", ref(Some((VFun(Prm(VecNew)): value)))),
-      ("mvec", ref(Some((VFun(Prm(VecNew)): value)))),
-      ("vec-ref", ref(Some((VFun(Prm(VecRef)): value)))),
-      ("vec-set!", ref(Some((VFun(Prm(VecSet)): value)))),
-      ("vec-len", ref(Some((VFun(Prm(VecLen)): value)))),
-      ("pair", ref(Some((VFun(Prm(PairNew)): value)))),
-      ("mpair", ref(Some((VFun(Prm(PairNew)): value)))),
-      ("left", ref(Some((VFun(Prm(PairRefLeft)): value)))),
-      ("right", ref(Some((VFun(Prm(PairRefRight)): value)))),
-      ("set-left!", ref(Some((VFun(Prm(PairSetLeft)): value)))),
-      ("set-right!", ref(Some((VFun(Prm(PairSetRight)): value)))),
-      ("error", ref(Some((VFun(Prm(Err)): value)))),
-      ("not", ref(Some((VFun(Prm(Not)): value)))),
+      // ("+", ref(Some((VFun(Prm(Add)): value)))),
+      // ("-", ref(Some((VFun(Prm(Sub)): value)))),
+      // ("*", ref(Some((VFun(Prm(Mul)): value)))),
+      // ("/", ref(Some((VFun(Prm(Div)): value)))),
+      // ("<", ref(Some((VFun(Prm(Lt)): value)))),
+      // ("=", ref(Some((VFun(Prm(Eqv)): value)))),
+      // (">", ref(Some((VFun(Prm(Gt)): value)))),
+      // ("<=", ref(Some((VFun(Prm(Le)): value)))),
+      // (">=", ref(Some((VFun(Prm(Ge)): value)))),
+      // ("!=", ref(Some((VFun(Prm(Ne)): value)))),
+      // ("eq?", ref(Some((VFun(Prm(Eqv)): value)))),
+      // ("vec", ref(Some((VFun(Prm(VecNew)): value)))),
+      // ("mvec", ref(Some((VFun(Prm(VecNew)): value)))),
+      // ("vec-ref", ref(Some((VFun(Prm(VecRef)): value)))),
+      // ("vec-set!", ref(Some((VFun(Prm(VecSet)): value)))),
+      // ("vec-len", ref(Some((VFun(Prm(VecLen)): value)))),
+      // ("pair", ref(Some((VFun(Prm(PairNew)): value)))),
+      // ("mpair", ref(Some((VFun(Prm(PairNew)): value)))),
+      // ("left", ref(Some((VFun(Prm(PairRefLeft)): value)))),
+      // ("right", ref(Some((VFun(Prm(PairRefRight)): value)))),
+      // ("set-left!", ref(Some((VFun(Prm(PairSetLeft)): value)))),
+      // ("set-right!", ref(Some((VFun(Prm(PairSetRight)): value)))),
+      // ("error", ref(Some((VFun(Prm(Err)): value)))),
+      // ("not", ref(Some((VFun(Prm(Not)): value)))),
     ],
   },
 }
@@ -740,9 +733,11 @@ and doLoop = (e, b, exp, stk: stack) => {
   let e = annotate(Cnd(list{(e1, b1)}, Some(b2)), exp.ann.begin, exp.ann.end)
   doEv(e, stk)
 }
+and doAppPrm = (p, vs, stk): state => {
+  delta(p, vs, stk)
+}
 and doApp = (v, vs, stk): state => {
   switch asFun(v) {
-  | Prm(p) => delta(p, vs, stk)
   | Udf(_id, _name, _ann, xs, b, env) =>
     if Js.Array.length(xs) == Js.List.length(vs) {
       let env = extend(env, Array.concat(xs, xsOfBlock(b))->Array.map(unann))
@@ -779,7 +774,7 @@ and transitionAppPrm = (
   switch es {
   | list{} => {
       let vs = List.reverse(vs)
-      doApp(VFun(Prm(f)), vs, stk)
+      doAppPrm(f, vs, stk)
     }
 
   | list{e, ...es} =>
@@ -793,7 +788,7 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
       let vs = List.reverse(vs)
       switch f {
       // Don't pause if we are applying a primitive operator
-      | VFun(Prm(_)) => doApp(f, vs, stk)
+      // | VFun(Prm(_)) => doApp(f, vs, stk)
       | _ => Continuing(Reducing(Applying(f, vs), stk))
       }
     }
@@ -849,7 +844,7 @@ let transition = (state: continuing_state): state => {
       switch redex {
       | Setting(x, v) => setting(x, v, stk)
       | VecSetting(v, i, e) => doVecSet(v, i, e, stk)
-      | AppPrming(f, vs) => doApp(VFun(Prm(f)), vs, stk)
+      | AppPrming(f, vs) => doAppPrm(f, vs, stk)
       | Applying(f, vs) => doApp(f, vs, stk)
       }
     }

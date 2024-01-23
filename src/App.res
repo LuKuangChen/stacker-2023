@@ -59,7 +59,7 @@ type state = {
 type randomSeedConfig = {isSet: bool, randomSeed: string}
 
 let make_preview = (sk, program) => {
-  switch program->terms_of_string |> Render.adjust_syntax(sk).unsafe_string_of_program {
+  switch program->SMoL.Parser.parseProgram |> Render.adjust_syntax(sk).unsafe_string_of_program {
   | program =>
     <>
       <span>
@@ -74,18 +74,18 @@ let make_preview = (sk, program) => {
         setProgram={_ => ()}
       />
     </>
-  | exception SMoL.ParseError(err) => {
-      let parseFeedback = stringOfParseError(err)
+  | exception SMoLParseError(err) => {
+      let parseFeedback = ParseError.toString(err)
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
     }
-  | exception SMoL.TranslationError(err) => {
+  | exception SMoLPrintError(err) => {
       <span className="parse-feedback"> {React.string(err)} </span>
     }
   }
 }
 
 let parseSMoL = (program: string) => {
-  terms_of_string(program)
+  Parser.parseProgram(program)
 }
 
 @react.component
@@ -138,12 +138,8 @@ let make = () => {
   }
   let loadProgram = program => {
     switch parseSMoL(program) {
-    | exception SMoL.ParseError(err) => {
-        setParseFeedback(_ => stringOfParseError(err))
-        None
-      }
-    | exception SExpression.ParseError(err) => {
-        setParseFeedback(_ => SExpression.Error.toString(err))
+    | exception SMoLParseError(err) => {
+        setParseFeedback(_ => ParseError.toString(err))
         None
       }
 
@@ -429,18 +425,7 @@ let make = () => {
             Lispy
           }}
           program={if is_running && runtime_syntax != Lispy {
-            Js.Console.log("I am looking at a non-Lispy syntax, right?")
-            program->terms_of_string->Render.adjust_syntax(runtime_syntax).string_of_program
-            // switch (program
-            // ->terms_of_string
-            // ->Render.adjust_syntax(runtime_syntax).string_of_program) {
-            // | translation => translation
-            // // | exception SMoL.ParseError(err) => {
-            // //     let parseFeedback = stringOfParseError(err)
-            // //     `;; ${parseFeedback}\n${program}`
-            // //   }
-            // // | exception SMoL.TranslationError(err) => `;; ${err}\n${program}`
-            // }
+            program->Parser.parseProgram->Render.adjust_syntax(runtime_syntax).string_of_program
           } else {
             program
           }}
