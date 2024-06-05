@@ -48,8 +48,8 @@ All parameters are optional.
 | (URL) Parameter | Type | Meaning |
 | - | - | - |
 | `program` | String | the program to run, written in the Lispy syntax |
-| `syntax` | `Lispy` or `JS` or `JavaScript` or `PY` or `Python` | the syntax in which to present everything | 
-| `nNext` | Nonnegative Integer | simulate clicking the `Next` button `nNext` times |
+| `syntax` | `Lispy` or `JavaScript` (or `JS`) or `Python` (or `PY`) | the syntax in which to present everything |
+| `nNext` | Non-negative Integer | simulate clicking the `Next` button `nNext` times |
 | `randomSeed` | String | the seed used to generate heap addresses |
 | `readOnlyMode` | Anything | when this parameter is set, stacker will present a much simpler UI that is just enough for reading the trace |
 
@@ -60,7 +60,7 @@ To see examples of parameters, you can run programs in the stacker and then clic
 ### Potential Problems: limitations that might exist, but we are not sure
 
 Programs that can be presented in Python-like syntax might or might
-nor have a Python-equivalent semantics.
+not have a Python-equivalent semantics.
 
 Programs that can be presented in JavaScript-like syntax might or
 might nor have a JavaScript-equivalent semantics.
@@ -76,9 +76,9 @@ element. This might raise accessibility problem.
 
 Add list-processing higher-order functions.
 
-`letrec` is interpreted as a block. It might be better to treat them as primitive
+`letrec` is interpreted as a block. It might be better to treat it as a primitive syntax.
 
-`let*` is read as `let`. It might be better to treat them as primitive
+`let*` is read as nested `let`. It might be better to treat it as a primitive syntax.
 
 ### Know Issues: limitations that we don't plan to (or simply can't) resolve
 
@@ -163,9 +163,9 @@ feedback, notably:
 - Students who attended [CSCI1730 in
   2022](https://cs.brown.edu/courses/cs173/2022/)
 - Kuang-Chen's friends and/or peers: [Elijah
-  Rivera](https://www.elijahrivera.com/) [Siddhartha
-  Prasad](https://www.siddharthaprasad.com) [Yanyan
-  Ren](https://yanyanr.github.io/) [Yanru
+  Rivera](https://www.elijahrivera.com/), [Siddhartha
+  Prasad](https://www.siddharthaprasad.com), [Yanyan
+  Ren](https://yanyanr.github.io/), [Yanru
   Liao](https://www.linkedin.com/in/yanru-liao-7780b2243/)
 - Several audiences of [the Stacker
   talk](https://youtu.be/y42WZS4spfo) in the 12th
