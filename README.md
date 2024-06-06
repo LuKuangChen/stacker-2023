@@ -16,30 +16,7 @@ syntaxes.
 SMoL = *Standard Model of Languages* It includes (mutable) variables,
 mutable vectors (i.e., arrays), and first-class function.
 
-### Supported grammar
-
-```
-t ::= d
-    | e
-d ::= (defvar x e)
-    | (deffun (f x ...) body)
-e ::= c
-    | x
-    | (begin e ... e)
-    | (set! x e)
-    | (if e e e)
-    | (cond [e body] ... [else body])
-    | (cond [e body] ...)
-    | (lambda (x ...) body)
-    | (let ([x e] ...) body)
-    | (let* ([x e] ...) body)
-    | (letrec ([x e] ...) body)
-    | (e e ...)
-body    ::= t ... e
-program ::= t ...
-```
-
-See [this document](https://docs.google.com/document/d/e/2PACX-1vTMVCrUYliicrunyxftDwv6HVmBeKaRW9-VF9Xh1GUFoHMmomOczz_RRIZXPJoH8WB66x-d4GlRvwuy/pub) for a more detailed description of the language.
+See [this document](https://docs.google.com/document/d/e/2PACX-1vTMVCrUYliicrunyxftDwv6HVmBeKaRW9-VF9Xh1GUFoHMmomOczz_RRIZXPJoH8WB66x-d4GlRvwuy/pub) for more details.
 
 ## API
 
