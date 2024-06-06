@@ -5,7 +5,7 @@ import { noActiveLine } from './codemirror-no-active-line';
 
 function SMoLCodeMirror({ readOnly, value, onChange }) {
   return React.createElement(CodeMirror, {
-    width: "500px",
+    width: "100%",
     extensions: [smol(), ...readOnly ? [noActiveLine] : []],
     value, onChange,
     readOnly

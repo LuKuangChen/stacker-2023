@@ -67,20 +67,13 @@ let make_preview = (sk, program) => {
         <u> {React.string(sk |> syntax_as_string)} </u>
         {React.string(` translation)`)}
       </span>
-      <CodeEditor
-        syntax={sk}
-        program={program}
-        readOnly={true}
-        setProgram={_ => ()}
-      />
+      <CodeEditor syntax={sk} program={program} readOnly={true} setProgram={_ => ()} />
     </>
   | exception SMoLParseError(err) => {
       let parseFeedback = ParseError.toString(err)
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
     }
-  | exception SMoLPrintError(err) => {
-      <span className="parse-feedback"> {React.string(err)} </span>
-    }
+  | exception SMoLPrintError(err) => <span className="parse-feedback"> {React.string(err)} </span>
   }
 }
 
@@ -414,8 +407,29 @@ let make = () => {
       </label>
     </details>
   }
-  <main onKeyDown>
-    <section id="program-source">
+
+  let (dragging, setDragging) = React.useState(() => false)
+  let (editorWidth, setEditorWidth) = React.useState(() => None)
+  <main
+    onKeyDown
+    onMouseMove={event => {
+      if dragging {
+        let x = ReactEvent.Mouse.clientX(event)
+        setEditorWidth(_ => Some(x))
+      }
+    }}
+    onMouseUp={event => {
+      setDragging(_ => false)
+    }}>
+    <section
+      id="program-source"
+      style={switch editorWidth {
+      | None => {}
+      | Some(
+          editorWidth,
+        ) => ReactDOM.Style.make(~width=`calc(${Belt.Int.toString(editorWidth)}px - 0.5ex)`, ())
+        // ReactDOM.Style.make(~width=`${Belt.Int.toString(editorWidth)}px`, ())
+      }}>
       {exampleProgramsAndStopButtonShortcut}
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
         <CodeEditor
@@ -434,6 +448,12 @@ let make = () => {
         />
       </div>
     </section>
+    <div
+      id="split"
+      onMouseDown={event => {
+        setDragging(_ => true)
+      }}
+    />
     <section id="stacker">
       {advancedConfiguration}
       <menu id="nav-trace" ariaLabel="toolbar">

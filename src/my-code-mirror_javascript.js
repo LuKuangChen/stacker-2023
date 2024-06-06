@@ -5,7 +5,7 @@ import { noActiveLine } from './codemirror-no-active-line';
 
 function JavaScriptCodeMirror({ readOnly, value, onChange }) {
   return React.createElement(CodeMirror, {
-    width: "500px",
+    width: "100%",
     extensions: [javascript(), ...readOnly ? [noActiveLine] : []],
     value, onChange,
     readOnly
