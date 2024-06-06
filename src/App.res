@@ -2,12 +2,13 @@ open Belt
 open SMoL
 
 @module("./url_parameters") external syntaxAtURL: string = "syntaxAtURL"
+@module("./url_parameters") external printTopLevelAtURL: bool = "printTopLevelAtURL"
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
 @module("./url_parameters") external readOnlyMode: bool = "readOnlyMode"
 @module("./url_parameters")
-external make_url: (string, string, int, string, bool) => string = "make_url"
+external make_url: (string, string, int, string, bool, bool) => string = "make_url"
 @scope("window") @val external openPopUp: string => unit = "openPopUp"
 
 exception Impossible
@@ -97,6 +98,7 @@ let make = () => {
       parseSyntax(syntaxAtURL)
     }
   })
+  let (printTopLevel, setPrintTopLevel) = React.useState(_ => printTopLevelAtURL)
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
     if randomSeedAtURL == "" {
       {isSet: false, randomSeed: new_randomSeed()}
@@ -137,7 +139,7 @@ let make = () => {
       }
 
     | program => {
-        let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed)
+        let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed, printTopLevel)
         Some({
           prevs: list{},
           nexts: list{},
@@ -206,6 +208,7 @@ let make = () => {
         nNext,
         program,
         readOnlyMode,
+        printTopLevel
       ),
     )
   }
@@ -390,7 +393,7 @@ let make = () => {
       </label>
       <br />
       <label>
-        {React.string("Random Seed = ")}
+        {React.string("Random seed = ")}
         {
           let onChange = evt => {
             let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
@@ -404,6 +407,14 @@ let make = () => {
             />
           }
         }
+      </label>
+      <br />
+      <label>
+        {React.string("Print the values of top-level expressions")}
+        <input type_="checkbox" disabled={is_running} checked={
+          // Js.Console.log2("printing top-level?", printTopLevel)
+          printTopLevel
+        } onChange={_ => setPrintTopLevel(v => !v)}/>
       </label>
     </details>
   }
@@ -428,7 +439,6 @@ let make = () => {
       | Some(
           editorWidth,
         ) => ReactDOM.Style.make(~width=`calc(${Belt.Int.toString(editorWidth)}px - 0.5ex)`, ())
-        // ReactDOM.Style.make(~width=`${Belt.Int.toString(editorWidth)}px`, ())
       }}>
       {exampleProgramsAndStopButtonShortcut}
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
@@ -475,7 +485,7 @@ let make = () => {
         </li>
         {if readOnlyMode {
           <li>
-            <a href={make_url(runtime_syntax->syntax_as_string, "", -1, program, false)}>
+            <a href={make_url(runtime_syntax->syntax_as_string, "", -1, program, false, printTopLevel)}>
               {React.string("✎ edit")}
             </a>
           </li>

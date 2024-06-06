@@ -7,15 +7,28 @@ export const syntaxAtURL = urlParams.get('syntax') || "";
 export const randomSeedAtURL = urlParams.get('randomSeed') || "";
 export const nNextAtURL = parseInt(urlParams.get('nNext') || "-1");
 export const programAtURL = urlParams.get('program') || "";
-export const readOnlyMode = urlParams.get('readOnlyMode') !== null
-export const make_url = (syntax, randomSeed, nNext, program, readOnlyMode) => {
+export const readOnlyMode = urlParams.get('readOnlyMode') !== null;
+export const printTopLevelAtURL = urlParams.get('printOnRequest') === null;
+export const make_url = (syntax, randomSeed, nNext, program, readOnlyMode, printTopLevel) => {
     const params = new URLSearchParams();
     params.set('syntax', syntax);
     params.set('randomSeed', randomSeed);
     params.set('nNext', nNext);
     params.set('program', program);
     if (readOnlyMode) {
-        params.set('readOnlyMode', "")
+        params.set('readOnlyMode', "");
+    }
+    if (!printTopLevel) {
+        params.set('printOnRequest', "");
     }
     return `${urlBase}?${params.toString()}`;
 };
+
+// console.log(
+// "syntaxAtURL", syntaxAtURL,
+// "randomSeedAtURL", randomSeedAtURL,
+// "nNextAtURL", nNextAtURL,
+// "programAtURL", programAtURL,
+// "readOnlyMode", readOnlyMode,
+// "printTopLevel", printTopLevelAtURL,
+// )

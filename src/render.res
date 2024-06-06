@@ -52,7 +52,7 @@ let make_safe_stringifier = (stringifier: stringifier) => {
     string_of_expr: safe_f(x => string_of_term(Exp(x)), x => SMoL.SMoLPrinter.printTerm(Exp(x))),
     string_of_term: safe_f(string_of_term, SMoL.SMoLPrinter.printTerm),
     string_of_block: safe_f(string_of_block, SMoL.SMoLPrinter.printBlock),
-    string_of_program: safe_f(string_of_program, SMoL.SMoLPrinter.printProgram),
+    string_of_program: safe_f(string_of_program, SMoL.SMoLPrinter.printProgram(true)),
     unsafe_string_of_program: string_of_program,
   }
 }
@@ -63,19 +63,19 @@ let adjust_syntax = (sk): safe_stringifier => {
     make_safe_stringifier({
       string_of_term: SMoLPrinter.printTerm,
       string_of_block: SMoLPrinter.printBlock,
-      string_of_program: SMoLPrinter.printProgram,
+      string_of_program: SMoLPrinter.printProgram(true),
     })
   | JavaScript =>
     make_safe_stringifier({
       string_of_term: JSPrinter.printTerm,
       string_of_block: JSPrinter.printBlock,
-      string_of_program: JSPrinter.printProgram,
+      string_of_program: JSPrinter.printProgram(true),
     })
   | Python =>
     make_safe_stringifier({
       string_of_term: PYPrinter.printTerm,
       string_of_block: PYPrinter.printBlock,
-      string_of_program: PYPrinter.printProgram,
+      string_of_program: PYPrinter.printProgram(true),
     })
   }
 }
@@ -147,7 +147,7 @@ let stringify_context = (stringify: safe_stringifier) => {
     String.concat(
       "\n",
       list{
-        ...allVals->List.fromArray->List.map(string_of_value),
+        // ...allVals->List.fromArray->List.map(string_of_value),
         string_of_program(block_of_program_context(placeholder, ctx)),
       },
     )
@@ -290,6 +290,15 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     }
   }
 
+  let show_stdout = () => {
+    let stdout = stdout.contents
+    if stdout == list{} {
+      <span> {React.string("(No output yet)")} </span>
+    } else {
+      <pre className="stdout"> {React.string(String.concat("\n", List.reverse(stdout)))} </pre>
+    }
+  }
+
   let string_of_error = err => {
     switch err {
     | UnboundIdentifier(symbol) => `The variable \`${symbol}\` is not defined.`
@@ -306,7 +315,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           length,
         )}), found ${Int.toString(index)}.`
     | DivisionByZero => `Division by zero`
-    | UserRaised(message) => message
+    | AnyError(message) => message
     }
   }
 
@@ -343,7 +352,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     </ol>
   }
 
-  let show_state = (stack, now, envs, heap) => {
+  let show_state = (stack, now, envs, heap, stdout) => {
     <article id="stacker-configuration" ariaLabel="the current stacker configuration">
       <section id="stack-and-now">
         <h1> {React.string("Stack & Program Counter")} </h1>
@@ -359,6 +368,11 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         <h1> {React.string("Heap-allocated Values")} </h1>
         {heap}
       </section>
+      <section id="stdout">
+        <hr />
+        <h1> {React.string("Output: ")} </h1>
+        {stdout}
+      </section>
     </article>
   }
   let nowOfTerminatedState = s => {
@@ -372,12 +386,24 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | Tm =>
       <div className="now box terminated">
         <p> {React.string("Terminated")} </p>
-        {blank(String.concat("\n", allVals->List.fromArray->List.map(v => v |> string_of_value)))}
+        // {blank(String.concat("\n", allVals->List.fromArray->List.map(v => v |> string_of_value)))}
       </div>
     }
   }
   let nowOfRedex = (redex, ctx, env) => {
     switch redex {
+    | Printing(v) =>
+      <p className="now box printing">
+        {React.string("Printing ")}
+        {blank(v->expr_of_value->string_of_expr)}
+        <br />
+        {React.string("in context ")}
+        {ctx}
+        <br />
+        {React.string("in environment ")}
+        {env}
+      </p>
+
     | AppPrming(f, vs) =>
       <p className="now box calling">
         {React.string("Calling ")}
@@ -455,7 +481,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               {blank(v->string_of_value)}
             </p>
           </div>
-        show_state(stk, now, show_all_envs(), show_all_havs())
+        show_state(stk, now)
       }
 
     | Entering(entrance, b, env, stk: stack) => {
@@ -469,7 +495,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
             {React.string("in environment ")}
             {show_env(env)}
           </p>
-        show_state(stk, now, show_all_envs(), show_all_havs())
+        show_state(stk, now)
       }
 
     | Reducing(redex, stk) => {
@@ -486,7 +512,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           )
         }
         let now = nowOfRedex(redex, ctx, env)
-        show_state(stk, now, show_all_envs(), show_all_havs())
+        show_state(stk, now)
       }
     }
   }
@@ -497,7 +523,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       nowOfTerminatedState(state),
       show_all_envs(),
       show_all_havs(),
+      show_stdout(),
     )
-  | Continuing(state) => show_continuing_state(state)
+  | Continuing(state) =>
+    show_continuing_state(state, show_all_envs(), show_all_havs(), show_stdout())
   }
 }

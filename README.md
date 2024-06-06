@@ -29,6 +29,7 @@ All parameters are optional.
 | `nNext` | Non-negative Integer | simulate clicking the `Next` button `nNext` times |
 | `randomSeed` | String | the seed used to generate heap addresses |
 | `readOnlyMode` | Anything | when this parameter is set, stacker will present a much simpler UI that is just enough for reading the trace |
+| `printOnRequest` | Anything | when this parameter is set, stacker will *only* print values as requested by `(print v)` (rather than printing all values returned to the top-level) |
 
 To see examples of parameters, you can run programs in the stacker and then click the share buttons.
 
