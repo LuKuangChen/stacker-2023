@@ -127,12 +127,17 @@ module IntHash = Belt.Id.MakeHashable({
   let eq = (a, b) => a == b
 })
 
+type rec printing =
+  | PCon(string)
+  | PRef(int)
+  | PVec(option<int>, list<printing>)
+
 // This is the pretty presentation of values
-let presentValue = (v: value) => {
+let presentValue = (v: value): printing => {
   let hMap = Belt.HashMap.make(~hintSize=10, ~id=module(IntHash))
   let rec p = (visited: list<int>, v: value) => {
     switch v {
-    | Con(constant) => SMoLPrinter.printTerm(Exp(dummy_ann((Con(constant): expression))))
+    | Con(constant) => PCon(SMoLPrinter.printTerm(Exp(dummy_ann((Con(constant): expression)))))
     | VFun(_) => raise(RuntimeError(AnyError("Can't print functions")))
     | Vec(id, es) => if List.has(visited, id, (a, b) => a == b) {
         let r = switch HashMap.get(hMap, id) {
@@ -143,17 +148,11 @@ let presentValue = (v: value) => {
           }
         | Some(r) => r
         }
-        `#${Int.toString(r)}#`
+        PRef(r)
       } else {
         let p = p(list{id, ...visited})
         let es = Array.map(es, p) |> List.fromArray
-        let es = list{"mvec", ...es} |> List.toArray
-        let es = Array.joinWith(es, " ", e => e)
-        let content = `(${es})`
-        switch HashMap.get(hMap, id) {
-        | None => content
-        | Some(r) => `#${Int.toString(r)}#=${content}`
-        }
+        PVec(HashMap.get(hMap, id), es)
       }
     }
   }
@@ -196,7 +195,7 @@ let allHavs: ref<list<value>> = ref(list{})
 let printTopLevel = ref(true)
 
 // the bool tells whether the message is an error
-let stdout: ref<list<string>> = ref(list{})
+let stdout: ref<list<printing>> = ref(list{})
 let printStdout = s => {
   stdout := list{s, ...stdout.contents}
 }

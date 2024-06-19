@@ -37,6 +37,7 @@ type stringifier = {
   string_of_term: term => string,
   string_of_block: block => string,
   string_of_program: program => string,
+  string_of_printing: printing => string,
 }
 type safe_stringifier = {
   string_of_value: value => string,
@@ -44,16 +45,18 @@ type safe_stringifier = {
   string_of_term: term => string,
   string_of_block: block => string,
   string_of_program: program => string,
+  string_of_printing: printing => string,
   unsafe_string_of_program: program => string,
 }
 let make_safe_stringifier = (stringifier: stringifier) => {
-  let {string_of_term, string_of_block, string_of_program} = stringifier
+  let {string_of_term, string_of_block, string_of_program, string_of_printing} = stringifier
   {
     string_of_value: printValue,
     string_of_expr: safe_f(x => string_of_term(Exp(x)), x => SMoL.SMoLPrinter.printTerm(Exp(x))),
     string_of_term: safe_f(string_of_term, SMoL.SMoLPrinter.printTerm),
     string_of_block: safe_f(string_of_block, SMoL.SMoLPrinter.printBlock),
     string_of_program: safe_f(string_of_program, SMoL.SMoLPrinter.printProgram(true)),
+    string_of_printing,
     unsafe_string_of_program: string_of_program,
   }
 }
@@ -61,28 +64,88 @@ let make_safe_stringifier = (stringifier: stringifier) => {
 let adjust_syntax = (sk): safe_stringifier => {
   switch sk {
   | Lispy =>
+    let rec string_of_printing = (p) => {
+      switch p {
+        | PCon(s) => s
+        | PRef(r) => `#${Int.toString(r)}#`
+        | PVec(o, es) => {
+          `${
+            switch o {
+            | None => ""
+            | Some(r) => `#${Int.toString(r)}#=`
+            }
+          }(${String.concat(" ", list{"mvec", ...es -> List.map(string_of_printing)})))`
+        }
+      }
+    }
     make_safe_stringifier({
       string_of_term: SMoLPrinter.printTerm,
       string_of_block: SMoLPrinter.printBlock,
       string_of_program: SMoLPrinter.printProgram(true),
+      string_of_printing,
     })
   | JavaScript =>
+    let rec string_of_printing = (p) => {
+      switch p {
+        | PCon(s) => s
+        | PRef(r) => `#${Int.toString(r)}#`
+        | PVec(o, es) => {
+          `${
+            switch o {
+            | None => ""
+            | Some(r) => `#${Int.toString(r)}#=`
+            }
+          }[${String.concat(", ", es -> List.map(string_of_printing))}]`
+        }
+      }
+    }
     make_safe_stringifier({
       string_of_term: JSPrinter.printTerm,
       string_of_block: JSPrinter.printBlock,
       string_of_program: JSPrinter.printProgram(true),
+      string_of_printing
     })
   | Python =>
+    let rec string_of_printing = (p) => {
+      switch p {
+        | PCon(s) => s
+        | PRef(r) => `#${Int.toString(r)}#`
+        | PVec(o, es) => {
+          `${
+            switch o {
+            | None => ""
+            | Some(r) => `#${Int.toString(r)}#=`
+            }
+          }[${String.concat(", ", es -> List.map(string_of_printing))}]`
+        }
+      }
+    }
     make_safe_stringifier({
       string_of_term: PYPrinter.printTerm,
       string_of_block: PYPrinter.printBlock,
       string_of_program: PYPrinter.printProgram(true),
+      string_of_printing
     })
   | Common =>
+    let rec string_of_printing = (p) => {
+      switch p {
+        | PCon(s) => s
+        | PRef(r) => `#${Int.toString(r)}#`
+        | PVec(o, es) => {
+          `${
+            switch o {
+            | None => ""
+            | Some(r) => `#${Int.toString(r)}#=`
+            }
+          }vec[${String.concat(", ", es -> List.map(string_of_printing))}]`
+        }
+      }
+    }
     make_safe_stringifier({
       string_of_term: CommonPrinter.printTerm,
       string_of_block: CommonPrinter.printBlock,
       string_of_program: CommonPrinter.printProgram(true),
+      string_of_printing
     })
   }
 }
@@ -168,7 +231,7 @@ let stringify_context = (stringify: safe_stringifier) => {
 exception Impossible(string)
 let render: (syntax_kind, state) => React.element = (sk, s) => {
   let stringify = adjust_syntax(sk)
-  let {string_of_expr, string_of_block, string_of_term} = stringify
+  let {string_of_expr, string_of_block, string_of_term, string_of_printing} = stringify
   let (
     expr_of_value,
     string_of_value,
@@ -302,7 +365,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     if stdout == list{} {
       <span> {React.string("(No output yet)")} </span>
     } else {
-      <pre className="stdout"> {React.string(String.concat("\n", List.reverse(stdout)))} </pre>
+      <pre className="stdout"> {React.string(String.concat("\n", List.reverse(stdout) -> List.map(string_of_printing)))} </pre>
     }
   }
 
