@@ -10,6 +10,7 @@ expression {
   kw<"raise"> |
   kw<"lam"> |
   kw<"end"> |
+  kw<"vec"> |
   Identifier |
   String |
   Application { "(" expression* ")" } |

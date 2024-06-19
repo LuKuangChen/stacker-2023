@@ -99,8 +99,8 @@ let stringify_context = (stringify: safe_stringifier) => {
       switch ctx {
       | Set1(x, ()) => Set(x, any)
       | App1((), es) => App(any, es)
-      | App2(v, vs, (), es) => App(observe(v), list{...vs->List.map(observe), any, ...es})
-      | AppPrm1(p, vs, (), es) => AppPrm(p, list{...vs->List.map(observe), any, ...es})
+      | App2(v, vs, (), es) => App(observe(v), list{...vs->List.map(observe)->List.reverse, any, ...es})
+      | AppPrm1(p, vs, (), es) => AppPrm(p, list{...vs->List.map(observe)->List.reverse, any, ...es})
       | Let1(xvs, (x, ()), xes, block) =>
         Let(list{...xvs->List.map(((x, v)) => (x, observe(v))), (x, any), ...xes}, block)
       | If1((), e_thn, e_els) => If(any, e_thn, e_els)

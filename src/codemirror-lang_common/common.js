@@ -22,6 +22,7 @@ let parserWithMetadata = parser.configure({
       "raise": t.keyword,
       "lam": t.keyword,
       "end": t.keyword,
+      "vec": t.keyword,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit
@@ -56,6 +57,7 @@ export const commonCompletion = commonLanguage.data.of({
     { label: "raise", type: "keyword" },
     { label: "lam", type: "keyword" },
     { label: "end", type: "keyword" },
+    { label: "vec", type: "keyword" },
     { label: "+", type: "function" },
     { label: "-", type: "function" },
     { label: "*", type: "function" },

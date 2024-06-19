@@ -227,7 +227,7 @@ let make = () => {
   let is_running = state != None
   let runButton =
     <button onClick=onRunClick disabled={is_running}>
-      <span ariaHidden={true}> {React.string("⏵ ")} </span>
+      <span ariaHidden={true}> {React.string("▶ ")} </span>
       {React.string("Run")}
     </button>
   let stopButton =
@@ -520,7 +520,7 @@ let make = () => {
           <p>
             {React.string("To start tracing, click ")}
             <button onClick=onRunClick disabled={is_running}>
-              <span ariaHidden={true}> {React.string("⏵ ")} </span>
+              <span ariaHidden={true}> {React.string("▶ ")} </span>
               {React.string("Run")}
             </button>
             {React.string(".")}
