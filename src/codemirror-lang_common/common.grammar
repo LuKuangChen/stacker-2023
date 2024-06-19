@@ -1,0 +1,35 @@
+@top Program { expression* }
+expression {
+  kw<"true"> |
+  kw<"false"> |
+  kw<"let"> |
+  kw<"fun"> |
+  kw<"if"> |
+  kw<"else"> |
+  kw<"return"> |
+  kw<"raise"> |
+  kw<"lam"> |
+  kw<"end"> |
+  Identifier |
+  String |
+  Application { "(" expression* ")" } |
+  Application { "[" expression* "]" }
+}
+@tokens {
+  Identifier { $[a-zA-Z_0-9]+ }
+
+  String { '"' (!["\\] | "\\" _)* '"' }
+
+  LineComment { "//" ![\n]* }
+
+  space { $[ \t\n\r]+ }
+
+  "(" ")"
+
+  "#"
+
+  "[" "]"
+}
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+@skip { space | LineComment }
+@detectDelim

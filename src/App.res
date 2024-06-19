@@ -21,6 +21,8 @@ let parseSyntax = newValue =>
   | "JavaScript" => Some(JavaScript)
   | "PY" => Some(Python)
   | "Python" => Some(Python)
+  | "CM" => Some(Common)
+  | "Common" => Some(Common)
   | _ => None
   }
 let syntax_as_string = sk =>
@@ -28,6 +30,7 @@ let syntax_as_string = sk =>
   | Render.Lispy => "Lispy"
   | JavaScript => "JavaScript"
   | Python => "Python"
+  | Common => "Common"
   }
 
 type running_state = {
@@ -354,6 +357,16 @@ let make = () => {
             disabled={is_running}
             type_="radio"
             name="preview"
+            value="Common"
+            onClick={previewProgram(Some(Common))}
+          />
+          <span> {React.string("Common")} </span>
+        </label>
+        <label>
+          <input
+            disabled={is_running}
+            type_="radio"
+            name="preview"
             value="off"
             onClick={previewProgram(None)}
             checked={preview == None}
@@ -387,6 +400,9 @@ let make = () => {
             </option>
             <option selected={Some(Render.Python) == syntax} value="Python">
               {React.string("Python")}
+            </option>
+            <option selected={Some(Render.Common) == syntax} value="Common">
+              {React.string("Common")}
             </option>
           </select>
         }

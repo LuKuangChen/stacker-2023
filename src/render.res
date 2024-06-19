@@ -14,6 +14,7 @@ type syntax_kind =
   | Lispy
   | JavaScript
   | Python
+  | Common
 
 let id = x => x
 
@@ -76,6 +77,12 @@ let adjust_syntax = (sk): safe_stringifier => {
       string_of_term: PYPrinter.printTerm,
       string_of_block: PYPrinter.printBlock,
       string_of_program: PYPrinter.printProgram(true),
+    })
+  | Common =>
+    make_safe_stringifier({
+      string_of_term: CommonPrinter.printTerm,
+      string_of_block: CommonPrinter.printBlock,
+      string_of_program: CommonPrinter.printProgram(true),
     })
   }
 }

@@ -13,6 +13,11 @@ module PythonCodeMirror = {
   external make: (~value: string, ~readOnly: bool, ~onChange: string => unit) => React.element =
     "default"
 }
+module CommonCodeMirror = {
+  @react.component @module("./my-code-mirror_common")
+  external make: (~value: string, ~readOnly: bool, ~onChange: string => unit) => React.element =
+    "default"
+}
 
 @react.component
 let make = (~syntax, ~program, ~readOnly, ~setProgram) => {
@@ -31,6 +36,7 @@ let make = (~syntax, ~program, ~readOnly, ~setProgram) => {
   | Render.Lispy => <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   | JavaScript => <JavaScriptCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   | Python => <PythonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  | Common => <CommonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   }
   // let onChange = evt => {
   //   let s = ReactEvent.Form.currentTarget(evt)["value"]
