@@ -100,7 +100,7 @@ section#stdout {
 }
 
 code.blank {
-    display: inline-flex;
+    display: inline-block;
     white-space: pre-wrap;
     color: black;
     background-color: white;
@@ -263,4 +263,15 @@ details>summary~* {
 /* having a border looks dumb but slightly more readable I (KC) think */
 .box {
     border: 1px solid black;
+}
+
+
+/* highlight.js */
+.highlight {
+    outline: 1ex solid red;
+}
+
+.ref, .def {
+    /* font-weight: bold;
+    color: grey; */
 }

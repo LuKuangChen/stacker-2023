@@ -18,8 +18,68 @@ type syntax_kind =
 
 let id = x => x
 
+@module("./highlight") external highlight: string => unit = "highlight"
+@module("./highlight") external lowlight: string => unit = "lowlight"
+
+let array_interleave = (arr, sep) => {
+  if Array.length(arr) == 1 {
+    arr
+  } else {
+    let prefix = [Array.getExn(arr, 0)]
+    let suffix = Array.flatMap(Array.slice(arr, ~offset=1, ~len=Array.length(arr) - 1), e => [
+      sep,
+      e,
+    ])
+    Array.concat(prefix, suffix)
+  }
+}
+
+let re_split = (s, re) => {
+  Js.Console.log3("Before split", s, Js.String.match_(re, s))
+  switch Js.String.match_(re, s) {
+  | None => [s]
+  | Some(fragments) =>
+    Array.reduce(fragments, [s], (ss, frag) => {
+      let frag = Option.getExn(frag)
+      Array.flatMap(ss, s => {
+        Js.Console.log(`Spliting "${s}" by fragment "${frag}"`)
+        array_interleave(Js.String.split(frag, s), frag)
+      })
+    })
+  }
+}
+
 let blank = s => {
-  <code className="blank"> {React.string(s)} </code>
+  let s = re_split(s, %re("/@[-0-9a-zA-Z]+/"))
+  <code className="blank">
+    // {React.string(String.concat("<address>", s->List.fromArray))}
+    {React.array(
+      s->Array.mapWithIndex((i, s) => {
+        if mod(i, 2) == 0 {
+          React.string(s)
+        } else {
+          // must be an address
+          let address = String.sub(s, 1, String.length(s) - 1)
+          <span
+            className={`ref ref-${address}`}
+            onMouseEnter={_ => {
+              highlight(`#def-${address}`)
+            }}
+            onMouseLeave={_ => {
+              lowlight(`#def-${address}`)
+            }}>
+            {React.string(s)}
+          </span>
+        }
+      }),
+    )}
+  </code>
+}
+
+let defblank = s => {
+  <code className="blank def">
+    {React.string(s)}
+  </code>
 }
 
 let safe_f = (string_of, safe_string_of, src) => {
@@ -64,18 +124,15 @@ let make_safe_stringifier = (stringifier: stringifier) => {
 let adjust_syntax = (sk): safe_stringifier => {
   switch sk {
   | Lispy =>
-    let rec string_of_printing = (p) => {
+    let rec string_of_printing = p => {
       switch p {
-        | PCon(s) => s
-        | PRef(r) => `#${Int.toString(r)}#`
-        | PVec(o, es) => {
-          `${
-            switch o {
-            | None => ""
-            | Some(r) => `#${Int.toString(r)}#=`
-            }
-          }(${String.concat(" ", list{"mvec", ...es -> List.map(string_of_printing)})))`
-        }
+      | PCon(s) => s
+      | PRef(r) => `#${Int.toString(r)}#`
+      | PVec(o, es) =>
+        `${switch o {
+          | None => ""
+          | Some(r) => `#${Int.toString(r)}#=`
+          }}(${String.concat(" ", list{"mvec", ...es->List.map(string_of_printing)})})`
       }
     }
     make_safe_stringifier({
@@ -85,67 +142,58 @@ let adjust_syntax = (sk): safe_stringifier => {
       string_of_printing,
     })
   | JavaScript =>
-    let rec string_of_printing = (p) => {
+    let rec string_of_printing = p => {
       switch p {
-        | PCon(s) => s
-        | PRef(r) => `#${Int.toString(r)}#`
-        | PVec(o, es) => {
-          `${
-            switch o {
-            | None => ""
-            | Some(r) => `#${Int.toString(r)}#=`
-            }
-          }[${String.concat(", ", es -> List.map(string_of_printing))}]`
-        }
+      | PCon(s) => s
+      | PRef(r) => `#${Int.toString(r)}#`
+      | PVec(o, es) =>
+        `${switch o {
+          | None => ""
+          | Some(r) => `#${Int.toString(r)}#=`
+          }}[${String.concat(", ", es->List.map(string_of_printing))}]`
       }
     }
     make_safe_stringifier({
       string_of_term: JSPrinter.printTerm,
       string_of_block: JSPrinter.printBlock,
       string_of_program: JSPrinter.printProgram(true),
-      string_of_printing
+      string_of_printing,
     })
   | Python =>
-    let rec string_of_printing = (p) => {
+    let rec string_of_printing = p => {
       switch p {
-        | PCon(s) => s
-        | PRef(r) => `#${Int.toString(r)}#`
-        | PVec(o, es) => {
-          `${
-            switch o {
-            | None => ""
-            | Some(r) => `#${Int.toString(r)}#=`
-            }
-          }[${String.concat(", ", es -> List.map(string_of_printing))}]`
-        }
+      | PCon(s) => s
+      | PRef(r) => `#${Int.toString(r)}#`
+      | PVec(o, es) =>
+        `${switch o {
+          | None => ""
+          | Some(r) => `#${Int.toString(r)}#=`
+          }}[${String.concat(", ", es->List.map(string_of_printing))}]`
       }
     }
     make_safe_stringifier({
       string_of_term: PYPrinter.printTerm,
       string_of_block: PYPrinter.printBlock,
       string_of_program: PYPrinter.printProgram(true),
-      string_of_printing
+      string_of_printing,
     })
   | Common =>
-    let rec string_of_printing = (p) => {
+    let rec string_of_printing = p => {
       switch p {
-        | PCon(s) => s
-        | PRef(r) => `#${Int.toString(r)}#`
-        | PVec(o, es) => {
-          `${
-            switch o {
-            | None => ""
-            | Some(r) => `#${Int.toString(r)}#=`
-            }
-          }vec[${String.concat(", ", es -> List.map(string_of_printing))}]`
-        }
+      | PCon(s) => s
+      | PRef(r) => `#${Int.toString(r)}#`
+      | PVec(o, es) =>
+        `${switch o {
+          | None => ""
+          | Some(r) => `#${Int.toString(r)}#=`
+          }}vec[${String.concat(", ", es->List.map(string_of_printing))}]`
       }
     }
     make_safe_stringifier({
       string_of_term: CommonPrinter.printTerm,
       string_of_block: CommonPrinter.printBlock,
       string_of_program: CommonPrinter.printProgram(true),
-      string_of_printing
+      string_of_printing,
     })
   }
 }
@@ -162,8 +210,10 @@ let stringify_context = (stringify: safe_stringifier) => {
       switch ctx {
       | Set1(x, ()) => Set(x, any)
       | App1((), es) => App(any, es)
-      | App2(v, vs, (), es) => App(observe(v), list{...vs->List.map(observe)->List.reverse, any, ...es})
-      | AppPrm1(p, vs, (), es) => AppPrm(p, list{...vs->List.map(observe)->List.reverse, any, ...es})
+      | App2(v, vs, (), es) =>
+        App(observe(v), list{...vs->List.map(observe)->List.reverse, any, ...es})
+      | AppPrm1(p, vs, (), es) =>
+        AppPrm(p, list{...vs->List.map(observe)->List.reverse, any, ...es})
       | Let1(xvs, (x, ()), xes, block) =>
         Let(list{...xvs->List.map(((x, v)) => (x, observe(v))), (x, any), ...xes}, block)
       | If1((), e_thn, e_els) => If(any, e_thn, e_els)
@@ -273,9 +323,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | list{} => raise(Impossible("An environment must have at least one frame."))
     | list{frm, ...rest} => {
         let {id, content: _} = frm
-        <li key={Int.toString(key)} className="env-frame box">
+        <li id={`def-${id}`} key={Int.toString(key)} className="env-frame box">
           <span>
-            {blank(`@${id}`)}
+            {defblank(`@${id}`)}
             <br />
             {React.string("binds ")}
             {show_envFrm(frm)}
@@ -305,8 +355,8 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
-        <li key className="fun box">
-          {blank(`@${id}`)}
+        <li key id={`def-${id}`} className="fun box">
+          {defblank(`@${id}`)}
           {React.string(", a function")}
           <br />
           <details>
@@ -328,8 +378,8 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
 
     | Vec(id, vs) => {
         let id = id->Int.toString
-        <li key className="vec box">
-          {blank(`@${id}`)}
+        <li key id={`def-${id}`} className="vec box">
+          {defblank(`@${id}`)}
           <br />
           {React.string("vec")}
           {React.array(
@@ -365,7 +415,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     if stdout == list{} {
       <span> {React.string("(No output yet)")} </span>
     } else {
-      <pre className="stdout"> {React.string(String.concat("\n", List.reverse(stdout) -> List.map(string_of_printing)))} </pre>
+      <pre className="stdout">
+        {React.string(String.concat("\n", List.reverse(stdout)->List.map(string_of_printing)))}
+      </pre>
     }
   }
 
@@ -425,7 +477,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   let show_state = (stack, now, envs, heap, stdout) => {
     <article id="stacker-configuration" ariaLabel="the current stacker configuration">
       <section id="stack-and-now">
-        <h1> {React.string("Stack & Program Counter")} </h1>
+        <h1> {React.string("Stack & Current Task")} </h1>
         {stack}
         <hr />
         {now}

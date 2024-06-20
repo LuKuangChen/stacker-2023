@@ -139,7 +139,8 @@ let presentValue = (v: value): printing => {
     switch v {
     | Con(constant) => PCon(SMoLPrinter.printTerm(Exp(dummy_ann((Con(constant): expression)))))
     | VFun(_) => raise(RuntimeError(AnyError("Can't print functions")))
-    | Vec(id, es) => if List.has(visited, id, (a, b) => a == b) {
+    | Vec(id, es) =>
+      if List.has(visited, id, (a, b) => a == b) {
         let r = switch HashMap.get(hMap, id) {
         | None => {
             let r = HashMap.size(hMap)
@@ -589,8 +590,8 @@ and delta = (p, vs) =>
 
   | (Print, list{v}) => stk => Continuing(Reducing(Printing(v), stk))
 
-    // Js.Console.log(presentValue(v))
-    // return(Con(Uni))
+  // Js.Console.log(presentValue(v))
+  // return(Con(Uni))
 
   | _otherwise => {
       let wantedArity = arityOf(p)
@@ -625,9 +626,13 @@ and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: env
       transitionPrg(ts, env)
     | Exp =>
       if printTopLevel.contents {
-        printStdout(presentValue(v))
+        switch v {
+        | Con(Uni) => transitionPrg(ts, env)
+        | v => Continuing(Reducing(Printing(v), new_pile({env, ctx: new_pile((Exp, ts))})))
+        }
+      } else {
+        transitionPrg(ts, env)
       }
-      transitionPrg(ts, env)
     }
   | list{ctxFrame, ...topping} => {
       let stk: stack = {topping: list{}, base: {ctx: {topping, base}, env}}
