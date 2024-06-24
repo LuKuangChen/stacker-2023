@@ -35,14 +35,14 @@ let array_interleave = (arr, sep) => {
 }
 
 let re_split = (s, re) => {
-  Js.Console.log3("Before split", s, Js.String.match_(re, s))
+  // Js.Console.log3("Before split", s, Js.String.match_(re, s))
   switch Js.String.match_(re, s) {
   | None => [s]
   | Some(fragments) =>
     Array.reduce(fragments, [s], (ss, frag) => {
       let frag = Option.getExn(frag)
       Array.flatMap(ss, s => {
-        Js.Console.log(`Spliting "${s}" by fragment "${frag}"`)
+        // Js.Console.log(`Spliting "${s}" by fragment "${frag}"`)
         array_interleave(Js.String.split(frag, s), frag)
       })
     })

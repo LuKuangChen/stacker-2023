@@ -85,13 +85,23 @@ let parseSMoL = (program: string) => {
   Parser.parseProgram(program)
 }
 
+let remove_lang_line = (program: string) => {
+  // Js.Console.log2("Before replacement", program)
+  let re = %re("/^#lang[^\n]*[\n]*/g")
+  let program = Js.String.replaceByRe(re, "", program)
+  // Js.Console.log2("After replacement", program)
+  program
+}
+
 @react.component
 let make = () => {
   let (program, rawSetProgram) = React.useState(_ => "")
   let (parseFeedback, setParseFeedback) = React.useState(_ => "")
   let setProgram = (setter: string => string) => {
     setParseFeedback(_ => "")
-    rawSetProgram(setter)
+    rawSetProgram(v => {
+      remove_lang_line(setter(v))
+    })
   }
   let (nNext, setNNext) = React.useState(_ => 0)
   let (syntax, setSyntax) = React.useState(_ => {
@@ -153,6 +163,7 @@ let make = () => {
     }
   }
   let (state, setState) = React.useState(_ => {
+    let programAtURL = remove_lang_line(programAtURL);
     setProgram(_ => programAtURL)
     if nNextAtURL < 0 {
       None
@@ -211,7 +222,7 @@ let make = () => {
         nNext,
         program,
         readOnlyMode,
-        printTopLevel
+        printTopLevel,
       ),
     )
   }
@@ -427,10 +438,15 @@ let make = () => {
       <br />
       <label>
         {React.string("Print the values of top-level expressions")}
-        <input type_="checkbox" disabled={is_running} checked={
-          // Js.Console.log2("printing top-level?", printTopLevel)
-          printTopLevel
-        } onChange={_ => setPrintTopLevel(v => !v)}/>
+        <input
+          type_="checkbox"
+          disabled={is_running}
+          checked={
+            // Js.Console.log2("printing top-level?", printTopLevel)
+            printTopLevel
+          }
+          onChange={_ => setPrintTopLevel(v => !v)}
+        />
       </label>
     </details>
   }
@@ -452,9 +468,8 @@ let make = () => {
       id="program-source"
       style={switch editorWidth {
       | None => {}
-      | Some(
-          editorWidth,
-        ) => ReactDOM.Style.make(~width=`calc(${Belt.Int.toString(editorWidth)}px - 0.5ex)`, ())
+      | Some(editorWidth) =>
+        ReactDOM.Style.make(~width=`calc(${Belt.Int.toString(editorWidth)}px - 0.5ex)`, ())
       }}>
       {exampleProgramsAndStopButtonShortcut}
       <div ariaLabel="the code editor, press Esc then Tab to escape!">
@@ -501,7 +516,15 @@ let make = () => {
         </li>
         {if readOnlyMode {
           <li>
-            <a href={make_url(runtime_syntax->syntax_as_string, "", -1, program, false, printTopLevel)}>
+            <a
+              href={make_url(
+                runtime_syntax->syntax_as_string,
+                "",
+                -1,
+                program,
+                false,
+                printTopLevel,
+              )}>
               {React.string("✎ edit")}
             </a>
           </li>
