@@ -13,6 +13,40 @@ external make_url: (string, string, int, string, bool, bool) => string = "make_u
 
 exception Impossible
 
+module FontSize = {
+  type t =
+    | XXS
+    | XS
+    | S
+    | M
+    | L
+    | XL
+    | XXL
+  let default = M
+  let toString = fontSize => {
+    switch fontSize {
+    | XXS => "xx-small"
+    | XS => "x-small"
+    | S => "small"
+    | M => "medium"
+    | XXL => "xx-large"
+    | XL => "x-large"
+    | L => "large"
+    }
+  }
+  let fromString = s => {
+    switch s {
+    | "xx-small" => XXS
+    | "x-small" => XS
+    | "small" => S
+    | "xx-large" => XXL
+    | "x-large" => XL
+    | "large" => L
+    | _ => M
+    }
+  }
+}
+
 let parseSyntax = newValue =>
   switch newValue {
   | "SMoL" => Some(Render.Lispy)
@@ -89,6 +123,7 @@ let remove_lang_line = (program: string) => {
   // Js.Console.log2("Before replacement", program)
   let re = %re("/^#lang[^\n]*[\n]*/g")
   let program = Js.String.replaceByRe(re, "", program)
+
   // Js.Console.log2("After replacement", program)
   program
 }
@@ -162,8 +197,9 @@ let make = () => {
       }
     }
   }
+  let (editorFontSize, setEditorFontSize) = React.useState(_ => FontSize.default)
   let (state, setState) = React.useState(_ => {
-    let programAtURL = remove_lang_line(programAtURL);
+    let programAtURL = remove_lang_line(programAtURL)
     setProgram(_ => programAtURL)
     if nNextAtURL < 0 {
       None
@@ -262,6 +298,41 @@ let make = () => {
     _event => {
       setPreview(_ => preview)
     }
+  }
+  let editorConfig = if readOnlyMode {
+    <> </>
+  } else {
+    <span>
+      <label> {React.string("Font size = ")} </label>
+      <select
+        onChange={evt => {
+          let fs: string = ReactEvent.Form.currentTarget(evt)["value"]
+          let fs = FontSize.fromString(fs);
+          setEditorFontSize(_ => fs);
+        }}>
+        <option selected={FontSize.XXS == editorFontSize} value={FontSize.toString(XXS)}>
+          {React.string(FontSize.toString(XXS))}
+        </option>
+        <option selected={FontSize.XS == editorFontSize} value={FontSize.toString(XS)}>
+          {React.string(FontSize.toString(XS))}
+        </option>
+        <option selected={FontSize.S == editorFontSize} value={FontSize.toString(S)}>
+          {React.string(FontSize.toString(S))}
+        </option>
+        <option selected={FontSize.M == editorFontSize} value={FontSize.toString(M)}>
+          {React.string(FontSize.toString(M))}
+        </option>
+        <option selected={FontSize.L == editorFontSize} value={FontSize.toString(L)}>
+          {React.string(FontSize.toString(L))}
+        </option>
+        <option selected={FontSize.XL == editorFontSize} value={FontSize.toString(XL)}>
+          {React.string(FontSize.toString(XL))}
+        </option>
+        <option selected={FontSize.XXL == editorFontSize} value={FontSize.toString(XXL)}>
+          {React.string(FontSize.toString(XXL))}
+        </option>
+      </select>
+    </span>
   }
   let exampleProgramsAndStopButtonShortcut = if readOnlyMode {
     <> </>
@@ -391,7 +462,10 @@ let make = () => {
     <> </>
   } else {
     <details>
-      <summary> {React.string("Advanced configuration:")} </summary>
+      <summary>
+        <span ariaHidden={true}> {React.string("⚙️ ")} </span>
+        {React.string("Advanced configuration:")}
+      </summary>
       <label>
         {React.string("Syntax-flavor = ")}
         {
@@ -472,7 +546,10 @@ let make = () => {
         ReactDOM.Style.make(~width=`calc(${Belt.Int.toString(editorWidth)}px - 0.5ex)`, ())
       }}>
       {exampleProgramsAndStopButtonShortcut}
-      <div ariaLabel="the code editor, press Esc then Tab to escape!">
+      {editorConfig}
+      <div ariaLabel="the code editor, press Esc then Tab to escape!" style={{
+        fontSize: FontSize.toString(editorFontSize)
+      }}>
         <CodeEditor
           syntax={if is_running {
             runtime_syntax

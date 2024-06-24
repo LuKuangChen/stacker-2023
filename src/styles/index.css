@@ -275,3 +275,7 @@ details>summary~* {
     /* font-weight: bold;
     color: grey; */
 }
+
+#program-source {
+    width: 35vw;
+}
