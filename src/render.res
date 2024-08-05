@@ -77,9 +77,7 @@ let blank = s => {
 }
 
 let defblank = s => {
-  <code className="blank def">
-    {React.string(s)}
-  </code>
+  <code className="blank def"> {React.string(s)} </code>
 }
 
 let safe_f = (string_of, safe_string_of, src) => {
@@ -219,10 +217,11 @@ let stringify_context = (stringify: safe_stringifier) => {
       | If1((), e_thn, e_els) => If(any, e_thn, e_els)
       | Cnd1((), block, ebs, ob) => Cnd(list{(any, block), ...ebs}, ob)
       | Bgn1((), es, e) => Bgn(list{any, ...es}, e)
+      | Yield1() => Yield(any)
       },
     )
 
-  let interp_body_base = (base: bodyBase, any: annotated<expression>): block => {
+  let interp_body_base = ({isGen: _, base}: bodyBase, any: annotated<expression>): block => {
     switch base {
     | BdyDef(x, (), (ts, e)) => (list{Def(dummy_ann(Var(x, any))), ...ts}, e)
     | BdyExp((), (ts, e)) => (list{Exp(any), ...ts}, e)
@@ -351,13 +350,39 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   let show_one_hav = (key: int, val: value): React.element => {
     let key = Int.toString(key)
     switch val {
-    | VFun(Udf(id, name, ann, xs, body, env)) => {
+    | VGen(id, gen, env) => {
+        let id = id->Int.toString
+        let ctx = switch gen.contents {
+          | Fresh(b) => {
+            string_of_block(b)
+          }
+          | Started(ctx) => {
+            ctx->string_of_body_context
+          }
+          | Running => {
+            "N/A"
+          }
+        }
+        <li key id={`def-${id}`} className="fun box">
+          {defblank(`@${id}`)}
+          {React.string(", a generator")}
+          <br />
+          {React.string("with context ")}
+          {blank(ctx)}
+          <br />
+          <span>
+            {React.string("with environment ")}
+            {show_env(env)}
+          </span>
+        </li>
+      }
+    | VFun(Udf(id, isGen, name, ann, xs, body, env)) => {
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
         <li key id={`def-${id}`} className="fun box">
           {defblank(`@${id}`)}
-          {React.string(", a function")}
+          {React.string(isGen ? ", a generator function" : ", a function")}
           <br />
           <details>
             <summary>
@@ -396,7 +421,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         </li>
       }
 
-    | _ => raise(Impossible("Not supported heap-allocated value"))
+    | Con(_) => raise(Impossible("Not supported heap-allocated value"))
     }
   }
 
@@ -431,7 +456,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | ArityMismatch(arity, int) =>
       `Expecting a function that accept ${Int.toString(
           int,
-        )} arguments, given a function that takes ${Arity.toString(arity)} arguments.`
+        )} arguments, given a function that takes ${RTArity.toString(arity)} arguments.`
     | OutOfBound(length, index) =>
       `Expecting an index less than the length of the vector (${Int.toString(
           length,
@@ -514,6 +539,18 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   }
   let nowOfRedex = (redex, ctx, env) => {
     switch redex {
+    | Yielding(v) =>
+      <p className="now box returning">
+        {React.string("Yielding ")}
+        {blank(v->expr_of_value->string_of_expr)}
+        <br />
+        {React.string("in context ")}
+        {ctx}
+        <br />
+        {React.string("in environment ")}
+        {env}
+      </p>
+
     | Printing(v) =>
       <p className="now box printing">
         {React.string("Printing ")}
@@ -616,6 +653,16 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
             <br />
             {React.string("in environment ")}
             {show_env(env)}
+          </p>
+        show_state(stk, now)
+      }
+
+    | Nexting((id, _status, _env), stk) => {
+        let stk = show_stack(stk)
+        let now =
+          <p className="now box called">
+            {React.string(`Advancing the generator `)}
+            {blank(`@${id |> Int.toString}`)}
           </p>
         show_state(stk, now)
       }

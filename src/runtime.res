@@ -29,28 +29,65 @@ let makeRandomInt = seed => {
 
 let randomInt = ref(makeRandomInt(Js.Math.random()->Float.toString))
 
+type pile<'topping, 'base> = {topping: list<'topping>, base: 'base}
+let new_pile = base => {topping: list{}, base}
+let add_pile = (new_topping, {topping, base}) => {topping: list{new_topping, ...topping}, base}
+
+type bodyBaseBase =
+  | BdyDef(annotated<symbol>, unit, block)
+  | BdyExp(unit, block)
+  | BdyRet
+type programRedex =
+  | Def(annotated<symbol>)
+  | Exp
+type programBase = (programRedex, list<term>)
+
 type rec environmentFrame = {
   id: string,
   content: array<(symbol, ref<option<value>>)>,
 }
+and generatorStatus =
+  | Fresh(block)
+  | Started(pile<contextFrame, bodyBase>)
+  | Running
+and bodyBase = {isGen: option<generator>, base: bodyBaseBase}
 and environment = list<environmentFrame>
 and vector = (int, array<value>)
 and function =
   // User-Defined Functions
-  | Udf(int, ref<option<string>>, srcrange, array<annotated<symbol>>, block, environment)
+  | Udf(int, bool, ref<option<string>>, srcrange, array<annotated<symbol>>, block, environment)
+and generator = (int, ref<generatorStatus>, environment)
 and value =
   // Constants
   | Con(constant)
   // Functions
   | VFun(function)
+  | VGen(generator)
   // Vectors
   | Vec(vector)
+and contextFrame =
+  | Yield1(unit)
+  | Set1(annotated<symbol>, unit)
+  | App1(unit, list<annotated<expression>>)
+  | App2(value, list<value>, unit, list<annotated<expression>>)
+  | AppPrm1(SMoL.Primitive.t, list<value>, unit, list<annotated<expression>>)
+  | Let1(
+      list<(annotated<symbol>, value)>,
+      (annotated<symbol>, unit),
+      list<(annotated<symbol>, annotated<expression>)>,
+      block,
+    )
+  | If1(unit, annotated<expression>, annotated<expression>)
+  | Cnd1(unit, block, list<(annotated<expression>, block)>, option<block>)
+  | Bgn1(unit, list<annotated<expression>>, annotated<expression>)
+and frame<'base> = {ctx: pile<contextFrame, 'base>, env: environment}
 
 // This is the honest display of values
 let printValue = (v: value) => {
   switch v {
   | Con(constant) => SMoLPrinter.printTerm(Exp(dummy_ann((Con(constant): expression))))
-  | VFun(Udf(id, _, _, _, _, _)) => `@${id |> Int.toString}`
+  | VFun(Udf(id, _, _, _, _, _, _)) => `@${id |> Int.toString}`
+  | VGen((id, _, _)) => `@${id |> Int.toString}`
   | Vec(id, _) => `@${id |> Int.toString}`
   }
 }
@@ -58,32 +95,7 @@ let printValue = (v: value) => {
 let initialEnv: environment = list{
   {
     id: "primordial-env",
-    content: [
-      // ("+", ref(Some((VFun(Prm(Add)): value)))),
-      // ("-", ref(Some((VFun(Prm(Sub)): value)))),
-      // ("*", ref(Some((VFun(Prm(Mul)): value)))),
-      // ("/", ref(Some((VFun(Prm(Div)): value)))),
-      // ("<", ref(Some((VFun(Prm(Lt)): value)))),
-      // ("=", ref(Some((VFun(Prm(Eqv)): value)))),
-      // (">", ref(Some((VFun(Prm(Gt)): value)))),
-      // ("<=", ref(Some((VFun(Prm(Le)): value)))),
-      // (">=", ref(Some((VFun(Prm(Ge)): value)))),
-      // ("!=", ref(Some((VFun(Prm(Ne)): value)))),
-      // ("eq?", ref(Some((VFun(Prm(Eqv)): value)))),
-      // ("vec", ref(Some((VFun(Prm(VecNew)): value)))),
-      // ("mvec", ref(Some((VFun(Prm(VecNew)): value)))),
-      // ("vec-ref", ref(Some((VFun(Prm(VecRef)): value)))),
-      // ("vec-set!", ref(Some((VFun(Prm(VecSet)): value)))),
-      // ("vec-len", ref(Some((VFun(Prm(VecLen)): value)))),
-      // ("pair", ref(Some((VFun(Prm(PairNew)): value)))),
-      // ("mpair", ref(Some((VFun(Prm(PairNew)): value)))),
-      // ("left", ref(Some((VFun(Prm(PairRefLeft)): value)))),
-      // ("right", ref(Some((VFun(Prm(PairRefRight)): value)))),
-      // ("set-left!", ref(Some((VFun(Prm(PairSetLeft)): value)))),
-      // ("set-right!", ref(Some((VFun(Prm(PairSetRight)): value)))),
-      // ("error", ref(Some((VFun(Prm(Err)): value)))),
-      // ("not", ref(Some((VFun(Prm(Not)): value)))),
-    ],
+    content: [],
   },
 }
 
@@ -91,7 +103,7 @@ type result =
   | Err
   | Val(value)
 
-module Arity = {
+module RTArity = {
   type t =
     | AtLeast(int)
     | Exactly(int)
@@ -108,7 +120,7 @@ module Arity = {
     }
   }
 }
-type arity = Arity.t
+type arity = RTArity.t
 
 type runtimeError =
   | UnboundIdentifier(symbol)
@@ -139,6 +151,7 @@ let presentValue = (v: value): printing => {
     switch v {
     | Con(constant) => PCon(SMoLPrinter.printTerm(Exp(dummy_ann((Con(constant): expression)))))
     | VFun(_) => raise(RuntimeError(AnyError("Can't print functions")))
+    | VGen(_) => raise(RuntimeError(AnyError("Can't print generators")))
     | Vec(id, es) =>
       if List.has(visited, id, (a, b) => a == b) {
         let r = switch HashMap.get(hMap, id) {
@@ -164,10 +177,10 @@ let xsOfTerms = (ts: list<term>) => {
   open Js.List
   ts
   |> map((. trm) =>
-    switch trm {
+    switch (trm: term) {
     | Def({ann: _, it: Var(x, _e)}) => list{x}
     | Def({ann: _, it: Fun(x, _ys, _b)}) => list{x}
-    // | Def({ann: _, it: For(x, _e_from, _e_to, _b)}) => list{x}
+    | Def({ann: _, it: GFun(x, _ys, _b)}) => list{x}
     | Exp(_e) => list{}
     }
   )
@@ -285,7 +298,7 @@ let doRef = (env, x) => {
 let doSet = (env: environment, x: annotated<symbol>, v: value) => {
   // Js.log(`Setting`)
   switch v {
-  | VFun(Udf(_id, name, _meta, _xs, _env, _body)) =>
+  | VFun(Udf(_id, _isGen, name, _meta, _xs, _env, _body)) =>
     switch name.contents {
     | None => name := Some(x.it)
     | _ => ()
@@ -296,34 +309,6 @@ let doSet = (env: environment, x: annotated<symbol>, v: value) => {
   lookup(env, x.it).contents = Some(v)
 }
 
-type contextFrame =
-  | Set1(annotated<symbol>, unit)
-  | App1(unit, list<annotated<expression>>)
-  | App2(value, list<value>, unit, list<annotated<expression>>)
-  | AppPrm1(SMoL.Primitive.t, list<value>, unit, list<annotated<expression>>)
-  | Let1(
-      list<(annotated<symbol>, value)>,
-      (annotated<symbol>, unit),
-      list<(annotated<symbol>, annotated<expression>)>,
-      block,
-    )
-  | If1(unit, annotated<expression>, annotated<expression>)
-  | Cnd1(unit, block, list<(annotated<expression>, block)>, option<block>)
-  | Bgn1(unit, list<annotated<expression>>, annotated<expression>)
-type bodyBase =
-  | BdyDef(annotated<symbol>, unit, block)
-  | BdyExp(unit, block)
-  | BdyRet
-type programRedex =
-  | Def(annotated<symbol>)
-  | Exp
-type programBase = (programRedex, list<term>)
-
-type pile<'topping, 'base> = {topping: list<'topping>, base: 'base}
-let add_pile = (new_topping, {topping, base}) => {topping: list{new_topping, ...topping}, base}
-let new_pile = base => {topping: list{}, base}
-
-type frame<'base> = {ctx: pile<contextFrame, 'base>, env: environment}
 type stack = pile<frame<bodyBase>, frame<programBase>>
 
 let current_env = (stk: stack): environment => {
@@ -364,6 +349,7 @@ type redex =
   | Setting(annotated<symbol>, value)
   | VecSetting(vector, int, value)
   | Printing(value)
+  | Yielding(value)
 type continuing_state =
   // no env and no ctx
   | Returning(value, stack)
@@ -371,6 +357,7 @@ type continuing_state =
   | Entering(entrance, block, environment, stack)
   // all in
   | Reducing(redex, stack)
+  | Nexting(generator, stack)
 // a state always includes the heap. So we manage the heap as a global reference.
 type state =
   | Terminated(terminated_state)
@@ -395,6 +382,11 @@ and asFun = (v: value) =>
   switch v {
   | VFun(f) => f
   | _else => raise(RuntimeError(ExpectButGiven("function", v)))
+  }
+and asGen = (v: value) =>
+  switch v {
+  | VGen(udg) => udg
+  | _else => raise(RuntimeError(ExpectButGiven("generator", v)))
   }
 and asVec = v =>
   switch v {
@@ -459,7 +451,7 @@ let deltaEq = (cmp, v, vs): value => {
 
 let arityOf = p =>
   switch p {
-  | Add => Arity.AtLeast(1)
+  | Add => RTArity.AtLeast(1)
   | Sub => AtLeast(2)
   | Mul => AtLeast(1)
   | Div => AtLeast(2)
@@ -479,6 +471,7 @@ let arityOf = p =>
   | PairRefLeft | PairRefRight => Exactly(1)
   | PairSetLeft | PairSetRight => Exactly(2)
   | Print => Exactly(1)
+  | Next => Exactly(1)
   }
 
 exception Impossible(string)
@@ -486,12 +479,25 @@ exception Impossible(string)
 // a value.
 let rec return = (v: value, s: stack): state => {
   switch s {
-  | {topping: list{}, base: {ctx, env}} =>
-    // no more function call, go to top-level
-    continueTopLevel(v, ctx, env)
-  | {topping: list{{ctx, env}, ...topping}, base} =>
-    // continue the previous function call with the returned value
-    continueBody(v, ctx, env, {topping, base})
+  | {topping: list{}, base: {ctx, env}} => continueTopLevel(v, ctx, env)
+  | {topping: list{{ctx, env}, ...topping}, base} => continueBody(v, ctx, env, {topping, base})
+  }
+}
+and yield = (v: value, s: stack): state => {
+  switch s {
+  | {topping: list{}, base: _} => raise(RuntimeError(AnyError("yielding from the top-level block")))
+  | {topping: list{{ctx, env: _}, ...topping}, base} =>
+    switch ctx.base.isGen {
+    | None => raise(RuntimeError(AnyError("yielding from a non-generative function")))
+    | Some(_id, r, _env) =>
+      switch r.contents {
+      | Running => {
+          r := Started(ctx)
+          return(v, {topping, base})
+        }
+      | _ => raise(RuntimeError(AnyError("Internal error, please contact the developer")))
+      }
+    }
   }
 }
 and make_vector = vs => {
@@ -593,10 +599,15 @@ and delta = (p, vs) =>
   // Js.Console.log(presentValue(v))
   // return(Con(Uni))
 
+  | (Next, list{v}) =>
+    stk => {
+      Continuing(Nexting(asGen(v), stk))
+    }
+
   | _otherwise => {
       let wantedArity = arityOf(p)
       let actualArity = List.length(vs)
-      if Arity.minimalArity(wantedArity) != actualArity {
+      if RTArity.minimalArity(wantedArity) != actualArity {
         raise(RuntimeError(ArityMismatch(wantedArity, actualArity)))
       } else {
         raise(RuntimeError(AnyError(`Internal error with ${SMoL.Primitive.toString(p)}`)))
@@ -641,22 +652,22 @@ and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: env
   }
 }
 and continueBody = (v: value, ctx, env, stk): state => {
-  let {topping, base} = ctx
+  let {topping, base: {isGen, base}} = ctx
   switch topping {
   | list{} =>
     switch base {
     | BdyRet => Continuing(Returning(v, stk))
-    | BdyExp((), b) => transitionBlock(b, env, stk)
+    | BdyExp((), b) => transitionBlock(b, isGen, env, stk)
     | BdyDef(x, (), b) => {
         doSet(env, x, v)
-        transitionBlock(b, env, stk)
+        transitionBlock(b, isGen, env, stk)
       }
     }
   | list{ctxFrame, ...topping} =>
-    handleCtxFrame(v, ctxFrame, add_pile({ctx: {topping, base}, env}, stk))
+    handleCtxFrame(v, ctxFrame, add_pile({ctx: {topping, base: {isGen, base}}, env}, stk))
   }
 }
-and handleCtxFrame = (v, ctxFrame, stk: stack) => {
+and handleCtxFrame = (v: value, ctxFrame, stk: stack) => {
   switch ctxFrame {
   | Set1(x, ()) => Continuing(Reducing(Setting(x, v), stk))
   | Let1(xvs, (x, ()), xes, b) => transitionLet(list{(x, v), ...xvs}, xes, b, stk)
@@ -672,7 +683,7 @@ and handleCtxFrame = (v, ctxFrame, stk: stack) => {
     transitionAppPrm(fun, vals, exps, stk)
   | Cnd1((), b, ebs, ob) =>
     switch asLgc(v) {
-    | true => doBlk(b, stk)
+    | true => doBlk(b, None, stk)
     | false => transitionCnd(ebs, ob, stk)
     }
   | If1((), e_thn, e_els) =>
@@ -681,6 +692,9 @@ and handleCtxFrame = (v, ctxFrame, stk: stack) => {
     | false => doEv(e_els, stk)
     }
   | Bgn1((), es, e) => transitionBgn(es, e, stk)
+  | Yield1() =>
+    // switch stk {}
+    Continuing(Reducing(Yielding(v), stk))
   }
 }
 
@@ -695,7 +709,17 @@ and doEv = (exp: annotated<expression>, stk: stack) =>
     doEv(exp, consCtx(Set1(x, ()), stk))
   | Lam(xs, b) => {
       let id = newHavId()
-      let v: value = VFun(Udf(id, ref(None), exp.ann, xs |> Js.List.toVector, b, current_env(stk)))
+      let v: value = VFun(
+        Udf(id, false, ref(None), exp.ann, xs |> Js.List.toVector, b, current_env(stk)),
+      )
+      allHavs := list{v, ...allHavs.contents}
+      return(v, stk)
+    }
+  | GLam(xs, b) => {
+      let id = newHavId()
+      let v: value = VFun(
+        Udf(id, true, ref(None), exp.ann, xs |> Js.List.toVector, b, current_env(stk)),
+      )
       allHavs := list{v, ...allHavs.contents}
       return(v, stk)
     }
@@ -710,6 +734,7 @@ and doEv = (exp: annotated<expression>, stk: stack) =>
     doEv(exp, consCtx(App1((), es), stk))
   | Cnd(ebs, ob) => transitionCnd(ebs, ob, stk)
   | If(e_cnd, e_thn, e_els) => doEv(e_cnd, consCtx(If1((), e_thn, e_els), stk))
+  | Yield(e) => doEv(e, consCtx(Yield1(), stk))
   }
 and transitionLetrec = (
   xes: list<(annotated<symbol>, annotated<expression>)>,
@@ -722,7 +747,7 @@ and transitionLetrec = (
   })
   let ts = list{...ds, ...ts}
   let b = (ts, e)
-  doBlk(b, stk)
+  doBlk(b, None, stk)
 }
 and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>, b, stk: stack) => {
   switch xes {
@@ -739,20 +764,23 @@ and transitionLet = (xvs, xes: list<(annotated<symbol>, annotated<expression>)>,
   | list{(x, e), ...xes} => doEv(e, consCtx(Let1(xvs, (x, ()), xes, b), stk))
   }
 }
-and transitionBlock = ((ts, e), env: environment, stk: stack) => {
+and transitionBlock = ((ts, e), isGen, env: environment, stk: stack) => {
   switch ts {
   | list{} =>
     let exp = e
-    doEv(exp, add_pile({ctx: new_pile(BdyRet), env}, stk))
+    doEv(exp, add_pile({ctx: new_pile({isGen, base: BdyRet}), env}, stk))
   | list{Def({ann: _, it: Var(x, e0)}), ...ts} =>
     let exp = e0
-    doEv(exp, add_pile({ctx: new_pile(BdyDef(x, (), (ts, e))), env}, stk))
+    doEv(exp, add_pile({ctx: new_pile({isGen, base: BdyDef(x, (), (ts, e))}), env}, stk))
   | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
     let exp = annotate(Lam(xs, b), ann.begin, ann.end)
-    doEv(exp, add_pile({ctx: new_pile(BdyDef(f, (), (ts, e))), env}, stk))
+    doEv(exp, add_pile({ctx: new_pile({isGen, base: BdyDef(f, (), (ts, e))}), env}, stk))
+  | list{Def({ann, it: GFun(f, xs, b)}), ...ts} =>
+    let exp = annotate(GLam(xs, b), ann.begin, ann.end)
+    doEv(exp, add_pile({ctx: new_pile({isGen, base: BdyDef(f, (), (ts, e))}), env}, stk))
   | list{Exp(e0), ...ts} =>
     let exp = e0
-    doEv(exp, add_pile({ctx: new_pile(BdyExp((), (ts, e))), env}, stk))
+    doEv(exp, add_pile({ctx: new_pile({isGen, base: BdyExp((), (ts, e))}), env}, stk))
   }
 }
 and transitionPrg = (ts, env: environment) => {
@@ -764,6 +792,9 @@ and transitionPrg = (ts, env: environment) => {
   | list{Def({ann, it: Fun(f, xs, b)}), ...ts} =>
     let exp = annotate(Lam(xs, b), ann.begin, ann.end)
     doEv(exp, new_pile({env, ctx: new_pile((Def(f), ts))}))
+  | list{Def({ann, it: GFun(f, xs, b)}), ...ts} =>
+    let exp = annotate(GLam(xs, b), ann.begin, ann.end)
+    doEv(exp, new_pile({env, ctx: new_pile((Def(f), ts))}))
   | list{Exp(e0), ...ts} =>
     let exp = e0
     doEv(exp, new_pile({env, ctx: new_pile((Exp, ts))}))
@@ -774,7 +805,7 @@ and transitionCnd = (ebs, ob, stk: stack) => {
   | list{} =>
     switch ob {
     | None => return(Con(Uni), stk)
-    | Some(b) => doBlk(b, stk)
+    | Some(b) => doBlk(b, None, stk)
     }
   | list{(e, b), ...ebs} => {
       let exp = e
@@ -800,7 +831,7 @@ and doAppPrm = (p, vs, stk): state => {
 }
 and doApp = (v, vs, stk): state => {
   switch asFun(v) {
-  | Udf(_id, _name, _ann, xs, b, env) =>
+  | Udf(_id, isGen, _name, _ann, xs, b, env) =>
     if Js.Array.length(xs) == Js.List.length(vs) {
       let env = extend(env, Array.concat(xs, xsOfBlock(b))->Array.map(unann))
 
@@ -810,7 +841,15 @@ and doApp = (v, vs, stk): state => {
         })
       }
 
-      Continuing(entering(App, b, env, stk))
+      if isGen {
+        let id = newHavId()
+        let v = VGen(id, ref(Fresh(b)), env)
+        // let v = VGen(id, ref({ctx: new_pile({isGen, base: BdyExp((), b)}), env}))
+        allHavs := list{v, ...allHavs.contents}
+        return(v, stk)
+      } else {
+        Continuing(entering(App, b, env, stk))
+      }
     } else {
       raise(RuntimeError(ArityMismatch(Exactly(Js.Array.length(xs)), Js.List.length(vs))))
     }
@@ -822,15 +861,21 @@ and doPrint = (v, stk): state => {
   return(Con(Uni), stk)
 }
 and entering = (entrance, b, env, stk) => {
-  switch stk {
+  let stk = switch stk {
   // tail-call optimization
-  | {topping: list{{ctx: {topping: list{}, base: BdyRet}, env: _}, ...topping}, base} =>
-    Entering(entrance, b, env, {topping, base})
-  | stk => Entering(entrance, b, env, stk)
+  | {
+      topping: list{
+        {ctx: {topping: list{}, base: {isGen: None, base: BdyRet}}, env: _},
+        ...topping,
+      },
+      base,
+    } => {topping, base}
+  | stk => stk
   }
+  Entering(entrance, b, env, stk)
 }
 and doEntering = (b, env, stk): state => {
-  transitionBlock(b, env, stk)
+  transitionBlock(b, None, env, stk)
 }
 and transitionAppPrm = (
   f: primitive,
@@ -865,7 +910,7 @@ and transitionApp = (f: value, vs: list<value>, es: list<annotated<expression>>,
     doEv(exp, consCtx(App2(f, vs, (), es), stk))
   }
 }
-and doBlk = (b: block, stk: stack): state => {
+and doBlk = (b: block, isGen, stk: stack): state => {
   let xs = xsOfBlock(b)->Array.map(unann)
   let env = current_env(stk)
   let env = if Array.length(xs) == 0 {
@@ -875,13 +920,19 @@ and doBlk = (b: block, stk: stack): state => {
   }
   let stk = switch stk {
   // tail-call optimization
-  | {topping: list{{ctx: {topping: list{}, base: BdyRet}, env: _}, ...topping}, base} => {
+  | {
+      topping: list{
+        {ctx: {topping: list{}, base: {isGen: None, base: BdyRet}}, env: _},
+        ...topping,
+      },
+      base,
+    } => {
       topping,
       base,
     }
   | stk => stk
   }
-  transitionBlock(b, env, stk)
+  transitionBlock(b, isGen, env, stk)
 }
 
 let load = (program: program, randomSeed: string, p: bool) => {
@@ -902,10 +953,34 @@ let load = (program: program, randomSeed: string, p: bool) => {
   }
 }
 
+let doNext = (generator, stk) => {
+  let (_id, r, env) = generator
+  switch r.contents {
+  | Fresh(b) => {
+      r := Running
+      transitionBlock(b, Some(generator), env, stk)
+    }
+  | Started(ctx) => {
+      r := Running
+      return(Con(Uni), add_pile({ctx, env}, stk))
+    }
+  | Running => raise(RuntimeError(AnyError("This generator is already running")))
+  }
+  // TODO: for now, don't check if the generator is exhausted.
+
+  // switch frm.ctx {
+  //   | { topping: list{}, base: { isGen: true, base: BdyRet }} => {
+  //     raise(Runtime)
+  //   }
+  // | _ =>
+  // }
+}
+
 let transition = (state: continuing_state): state => {
   try {
     switch state {
     | Returning(v, stk: stack) => return(v, stk)
+    | Nexting(gen, stk) => doNext(gen, stk)
     | Entering(_, b, env, stk: stack) => doEntering(b, env, stk)
     | Reducing(redex, stk: stack) =>
       switch redex {
@@ -914,6 +989,7 @@ let transition = (state: continuing_state): state => {
       | AppPrming(f, vs) => doAppPrm(f, vs, stk)
       | Applying(f, vs) => doApp(f, vs, stk)
       | Printing(v) => doPrint(v, stk)
+      | Yielding(v) => yield(v, stk)
       }
     }
   } catch {

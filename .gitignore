@@ -6,3 +6,4 @@
 **/*.bs.js
 /dist
 !/dist/index.html
+src/linkes
