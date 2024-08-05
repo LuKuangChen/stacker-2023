@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@lukuangchen/s-expression": "^2.0.3",
-    "@lukuangchen/smol-translator": "^6.0.0",
+    "@lukuangchen/smol-translator": "git://github.com/brownplt/smol-translator",
     "@rescript/react": "^0.11.0",
     "@uiw/react-codemirror": "^4.19.9",
     "leader-line": "^1.0.7",
