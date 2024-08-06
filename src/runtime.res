@@ -47,16 +47,17 @@ type rec environmentFrame = {
   content: array<(symbol, ref<option<value>>)>,
 }
 and generatorStatus =
-  | Fresh(block)
-  | Started(pile<contextFrame, bodyBase>)
+  | Fresh(block, environment)
+  | Suspended(pile<contextFrame, bodyBase>, environment)
   | Running
+  | Done
 and bodyBase = {isGen: option<generator>, base: bodyBaseBase}
 and environment = list<environmentFrame>
 and vector = (int, array<value>)
 and function =
   // User-Defined Functions
   | Udf(int, bool, ref<option<string>>, srcrange, array<annotated<symbol>>, block, environment)
-and generator = (int, ref<generatorStatus>, environment)
+and generator = (int, ref<generatorStatus>)
 and value =
   // Constants
   | Con(constant)
@@ -87,7 +88,7 @@ let printValue = (v: value) => {
   switch v {
   | Con(constant) => SMoLPrinter.printTerm(Exp(dummy_ann((Con(constant): expression))))
   | VFun(Udf(id, _, _, _, _, _, _)) => `@${id |> Int.toString}`
-  | VGen((id, _, _)) => `@${id |> Int.toString}`
+  | VGen((id, _)) => `@${id |> Int.toString}`
   | Vec(id, _) => `@${id |> Int.toString}`
   }
 }
@@ -486,13 +487,13 @@ let rec return = (v: value, s: stack): state => {
 and yield = (v: value, s: stack): state => {
   switch s {
   | {topping: list{}, base: _} => raise(RuntimeError(AnyError("yielding from the top-level block")))
-  | {topping: list{{ctx, env: _}, ...topping}, base} =>
+  | {topping: list{{ctx, env}, ...topping}, base} =>
     switch ctx.base.isGen {
     | None => raise(RuntimeError(AnyError("yielding from a non-generative function")))
-    | Some(_id, r, _env) =>
+    | Some(_id, r) =>
       switch r.contents {
       | Running => {
-          r := Started(ctx)
+          r := Suspended(ctx, env)
           return(v, {topping, base})
         }
       | _ => raise(RuntimeError(AnyError("Internal error, please contact the developer")))
@@ -656,7 +657,12 @@ and continueBody = (v: value, ctx, env, stk): state => {
   switch topping {
   | list{} =>
     switch base {
-    | BdyRet => Continuing(Returning(v, stk))
+    | BdyRet => {
+        isGen->Option.forEach(((_id, status)) => {
+          status := Done
+        });
+        Continuing(Returning(v, stk))
+      }
     | BdyExp((), b) => transitionBlock(b, isGen, env, stk)
     | BdyDef(x, (), b) => {
         doSet(env, x, v)
@@ -843,8 +849,7 @@ and doApp = (v, vs, stk): state => {
 
       if isGen {
         let id = newHavId()
-        let v = VGen(id, ref(Fresh(b)), env)
-        // let v = VGen(id, ref({ctx: new_pile({isGen, base: BdyExp((), b)}), env}))
+        let v = VGen(id, ref(Fresh(b, env)))
         allHavs := list{v, ...allHavs.contents}
         return(v, stk)
       } else {
@@ -954,26 +959,20 @@ let load = (program: program, randomSeed: string, p: bool) => {
 }
 
 let doNext = (generator, stk) => {
-  let (_id, r, env) = generator
+  let (_id, r) = generator
   switch r.contents {
-  | Fresh(b) => {
+  | Fresh(b, env) => {
       r := Running
       transitionBlock(b, Some(generator), env, stk)
     }
-  | Started(ctx) => {
+  | Suspended(ctx, env) => {
       r := Running
       return(Con(Uni), add_pile({ctx, env}, stk))
     }
-  | Running => raise(RuntimeError(AnyError("This generator is already running")))
-  }
-  // TODO: for now, don't check if the generator is exhausted.
+  | Running => raise(RuntimeError(AnyError("This generator is already running.")))
 
-  // switch frm.ctx {
-  //   | { topping: list{}, base: { isGen: true, base: BdyRet }} => {
-  //     raise(Runtime)
-  //   }
-  // | _ =>
-  // }
+  | Done => raise(RuntimeError(AnyError("This generator is done.")))
+  }
 }
 
 let transition = (state: continuing_state): state => {

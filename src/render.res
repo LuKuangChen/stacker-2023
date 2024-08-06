@@ -319,7 +319,10 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
 
   let show_one_env = (key: int, env: environment): React.element => {
     switch env {
-    | list{} => raise(Impossible("An environment must have at least one frame."))
+    | list{} => {
+      // blank("An environment must have at least one frame.")
+      raise(Impossible("An environment must have at least one frame."))
+    }
     | list{frm, ...rest} => {
         let {id, content: _} = frm
         <li id={`def-${id}`} key={Int.toString(key)} className="env-frame box">
@@ -350,30 +353,43 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   let show_one_hav = (key: int, val: value): React.element => {
     let key = Int.toString(key)
     switch val {
-    | VGen(id, gen, env) => {
+    | VGen(id, gen) => {
         let id = id->Int.toString
-        let ctx = switch gen.contents {
-          | Fresh(b) => {
-            string_of_block(b)
-          }
-          | Started(ctx) => {
-            ctx->string_of_body_context
-          }
-          | Running => {
-            "N/A"
-          }
+        let status = switch gen.contents {
+        | Fresh(_b, _env) => "fresh"
+        | Suspended(_ctx, _env) => "suspended"
+        | Running => "running"
+        | Done => "done"
         }
         <li key id={`def-${id}`} className="fun box">
           {defblank(`@${id}`)}
-          {React.string(", a generator")}
-          <br />
-          {React.string("with context ")}
-          {blank(ctx)}
-          <br />
-          <span>
-            {React.string("with environment ")}
-            {show_env(env)}
-          </span>
+          {React.string(", a ")}
+          {blank(status)}
+          {React.string(" generator")}
+          {switch gen.contents {
+          | Fresh(b, env) =>
+            <>
+              <br />
+              {blank(string_of_block(b))}
+              <br />
+              <span>
+                {React.string("with environment ")}
+                {show_env(env)}
+              </span>
+            </>
+          | Suspended(ctx, env) =>
+            <>
+              <br />
+              {React.string("with context ")}
+              {blank(ctx->string_of_body_context)}
+              <br />
+              <span>
+                {React.string("with environment ")}
+                {show_env(env)}
+              </span>
+            </>
+          | Running | Done => <> </>
+          }}
         </li>
       }
     | VFun(Udf(id, isGen, name, ann, xs, body, env)) => {
@@ -432,17 +448,6 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       <ol className="box-list" ariaLabel="a list of all heap-allocated values">
         {React.array(allHavs.contents->reverse->List.mapWithIndex(show_one_hav)->List.toArray)}
       </ol>
-    }
-  }
-
-  let show_stdout = () => {
-    let stdout = stdout.contents
-    if stdout == list{} {
-      <span> {React.string("(No output yet)")} </span>
-    } else {
-      <pre className="stdout">
-        {React.string(String.concat("\n", List.reverse(stdout)->List.map(string_of_printing)))}
-      </pre>
     }
   }
 
@@ -517,8 +522,18 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       </section>
       <section id="stdout">
         <hr />
-        <h1> {React.string("Output: ")} </h1>
-        {stdout}
+        {if stdout == list{} {
+          <span> {React.string("(No output yet)")} </span>
+        } else {
+          <>
+            <h1> {React.string("Output: ")} </h1>
+            <pre className="stdout">
+              {React.string(
+                String.concat("\n", List.reverse(stdout)->List.map(string_of_printing)),
+              )}
+            </pre>
+          </>
+        }}
       </section>
     </article>
   }
@@ -657,7 +672,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         show_state(stk, now)
       }
 
-    | Nexting((id, _status, _env), stk) => {
+    | Nexting((id, _status), stk) => {
         let stk = show_stack(stk)
         let now =
           <p className="now box called">
@@ -692,9 +707,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       nowOfTerminatedState(state),
       show_all_envs(),
       show_all_havs(),
-      show_stdout(),
+      stdout.contents,
     )
   | Continuing(state) =>
-    show_continuing_state(state, show_all_envs(), show_all_havs(), show_stdout())
+    show_continuing_state(state, show_all_envs(), show_all_havs(), stdout.contents)
   }
 }
