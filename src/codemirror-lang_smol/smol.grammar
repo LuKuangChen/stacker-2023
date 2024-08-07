@@ -1,7 +1,9 @@
 @top Program { expression* }
 expression {
+  kw<"defgen"> |
   kw<"deffun"> |
   kw<"defvar"> |
+  kw<"yield"> |
   kw<"set!"> |
   kw<"if"> |
   kw<"let"> |
@@ -9,6 +11,7 @@ expression {
   kw<"else"> |
   kw<"begin"> |
   kw<"lambda"> |
+  kw<"generator"> |
   kw<"λ"> |
   Identifier |
   String |

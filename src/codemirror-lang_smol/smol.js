@@ -13,8 +13,10 @@ let parserWithMetadata = parser.configure({
       "[ ]": t.paren,
       "#t": t.keyword,
       "#f": t.keyword,
+      "defgen": t.keyword,
       "deffun": t.keyword,
       "defvar": t.keyword,
+      "yield": t.keyword,
       "set!": t.keyword,
       "if": t.keyword,
       "let": t.keyword,
@@ -23,6 +25,7 @@ let parserWithMetadata = parser.configure({
       "begin": t.keyword,
       "lambda": t.keyword,
       "λ": t.keyword,
+      "generator": t.keyword,
     }),
     indentNodeProp.add({
       Application: context => context.column(context.node.from) + context.unit
@@ -48,8 +51,10 @@ export const smolCompletion = smolLanguage.data.of({
   autocomplete: completeFromList([
     { label: "#t", type: "keyword" },
     { label: "#f", type: "keyword" },
+    { label: "defgen", type: "keyword" },
     { label: "deffun", type: "keyword" },
     { label: "defvar", type: "keyword" },
+    { label: "yield", type: "keyword" },
     { label: "set!", type: "keyword" },
     { label: "if", type: "keyword" },
     { label: "let", type: "keyword" },
@@ -57,6 +62,7 @@ export const smolCompletion = smolLanguage.data.of({
     { label: "else", type: "keyword" },
     { label: "begin", type: "keyword" },
     { label: "lambda", type: "keyword" },
+    { label: "generator", type: "keyword" },
     { label: "λ", type: "keyword" },
     { label: "+", type: "function" },
     { label: "-", type: "function" },
@@ -69,11 +75,13 @@ export const smolCompletion = smolLanguage.data.of({
     { label: ">=", type: "function" },
     { label: "!=", type: "function" },
     { label: "eq?", type: "function" },
-    { label: "vec", type: "function" },
+    { label: "mvec", type: "function" },
     { label: "vec-ref", type: "function" },
     { label: "vec-set!", type: "function" },
     { label: "vec-len", type: "function" },
-    { label: "error", type: "function" }
+    { label: "error", type: "function" },
+    { label: "next", type: "function" },
+    { label: "print", type: "function" }
   ])
 });
 
