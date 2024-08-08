@@ -259,7 +259,11 @@ let stringify_context = (stringify: safe_stringifier) => {
     any |> embed_in_topping |> embed_in_base
   }
 
-  let placeholder = dummy_ann(Ref(dummy_ann("❓")))
+  let placeholder = "◌"
+// ❓ 🤔 🕳 👀 ⌛ ⏲ 🚀 🪧 ⭕ ⬚ ◌
+
+
+  let placeholder = dummy_ann(Ref(dummy_ann(placeholder)))
 
   let string_of_body_context = ctx => string_of_block(block_of_body_context(placeholder, ctx))
   let string_of_program_context = ctx =>
