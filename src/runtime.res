@@ -850,7 +850,8 @@ and doApp = (v, vs, stk): state => {
         let id = newHavId()
         let v = VGen(id, ref(Fresh(b, env)))
         allHavs := list{v, ...allHavs.contents}
-        return(v, stk)
+        Continuing(Returning(v, stk))
+        // return(v, stk)
       } else {
         Continuing(entering(App, b, env, stk))
       }
