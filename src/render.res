@@ -274,8 +274,8 @@ let stringify_context = (stringify: safe_stringifier) => {
         </tr>
         <tr>
           <td>
-            {React.string("(Generator @")}
-            {blank(id->Int.toString)}
+            {React.string("(Generator ")}
+            {blank(`@${id->Int.toString}`)}
             {React.string(")")}
           </td>
         </tr>
