@@ -48,7 +48,7 @@ type rec environmentFrame = {
 }
 and generatorStatus =
   | Fresh(block, environment)
-  | Suspended(pile<contextFrame, bodyBase>, environment)
+  | Suspended(pile<contextFrame, bodyBaseBase>, environment)
   | Running
   | Done
 and bodyBase = {isGen: option<generator>, base: bodyBaseBase}
@@ -492,7 +492,7 @@ and yield = (v: value, s: stack): state => {
     | Some(_id, r) =>
       switch r.contents {
       | Running => {
-          r := Suspended(ctx, env)
+          r := Suspended({topping: ctx.topping, base: ctx.base.base}, env)
           return(v, {topping, base})
         }
       | _ => raise(RuntimeError(AnyError("Internal error, please contact the developer")))
@@ -659,7 +659,7 @@ and continueBody = (v: value, ctx, env, stk): state => {
     | BdyRet => {
         isGen->Option.forEach(((_id, status)) => {
           status := Done
-        });
+        })
         Continuing(Returning(v, stk))
       }
     | BdyExp((), b) => transitionBlock(b, isGen, env, stk)
@@ -965,9 +965,9 @@ let doNext = (generator, stk) => {
       r := Running
       transitionBlock(b, Some(generator), env, stk)
     }
-  | Suspended(ctx, env) => {
+  | Suspended({topping, base}, env) => {
       r := Running
-      return(Con(Uni), add_pile({ctx, env}, stk))
+      return(Con(Uni), add_pile({ctx: {topping, base: {isGen: Some(generator), base}}, env}, stk))
     }
   | Running => raise(RuntimeError(AnyError("This generator is already running.")))
 

@@ -260,12 +260,28 @@ let stringify_context = (stringify: safe_stringifier) => {
   }
 
   let placeholder = "◌"
-// ❓ 🤔 🕳 👀 ⌛ ⏲ 🚀 🪧 ⭕ ⬚ ◌
-
+  // ❓ 🤔 🕳 👀 ⌛ ⏲ 🚀 🪧 ⭕ ⬚ ◌
 
   let placeholder = dummy_ann(Ref(dummy_ann(placeholder)))
 
-  let string_of_body_context = ctx => string_of_block(block_of_body_context(placeholder, ctx))
+  let renderBodyContext = (ctx: pile<contextFrame, bodyBase>) => {
+    switch ctx.base.isGen {
+    | None => blank(string_of_block(block_of_body_context(placeholder, ctx)))
+    | Some((id, _status)) =>
+      <table style={{display: "inline-table"}}>
+        <tr>
+          <td> {blank(string_of_block(block_of_body_context(placeholder, ctx)))} </td>
+        </tr>
+        <tr>
+          <td>
+            {React.string("(Generator @")}
+            {blank(id->Int.toString)}
+            {React.string(")")}
+          </td>
+        </tr>
+      </table>
+    }
+  }
   let string_of_program_context = ctx =>
     String.concat(
       "\n",
@@ -278,7 +294,7 @@ let stringify_context = (stringify: safe_stringifier) => {
     string_of_expr(dummy_ann(Lam(xs, body)))
   }
 
-  (expr_of_value, string_of_value, string_of_fun, string_of_body_context, string_of_program_context)
+  (expr_of_value, string_of_value, string_of_fun, renderBodyContext, string_of_program_context)
 }
 
 exception Impossible(string)
@@ -289,7 +305,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     expr_of_value,
     string_of_value,
     string_of_fun,
-    string_of_body_context,
+    renderBodyContext,
     string_of_program_context,
   ) = stringify_context(stringify)
 
@@ -323,10 +339,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
 
   let show_one_env = (key: int, env: environment): React.element => {
     switch env {
-    | list{} => {
+    | list{} =>
       // blank("An environment must have at least one frame.")
       raise(Impossible("An environment must have at least one frame."))
-    }
     | list{frm, ...rest} => {
         let {id, content: _} = frm
         <li id={`def-${id}`} key={Int.toString(key)} className="env-frame box">
@@ -381,11 +396,11 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
                 {show_env(env)}
               </span>
             </>
-          | Suspended(ctx, env) =>
+          | Suspended({topping, base}, env) =>
             <>
               <br />
               {React.string("with context ")}
-              {blank(ctx->string_of_body_context)}
+              {{topping, base: {isGen: None, base}}->renderBodyContext}
               <br />
               <span>
                 {React.string("with environment ")}
@@ -481,7 +496,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       {React.string("Waiting for a value")}
       <br />
       {React.string("in context ")}
-      {blank(ctx->string_of_body_context)}
+      {ctx->renderBodyContext}
       <br />
       {React.string("in environment ")}
       {show_env(env)}
@@ -598,10 +613,10 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {env}
       </p>
 
-    | Nexting(id, _status) => {
+    | Nexting(id, _status) =>
       <p className="now box calling">
         {React.string("Advancing ")}
-        {{blank(`@${id |> Int.toString}`)}}
+        {blank(`@${id |> Int.toString}`)}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -609,7 +624,6 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {React.string("in environment ")}
         {env}
       </p>
-      }
 
     | Setting(x, v) =>
       <p className="now box replacing">
@@ -686,7 +700,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
             <p> {React.string("(No stack frames)")} </p>,
           )
         | {topping: list{{ctx, env}, ...topping}, base} => (
-            blank(ctx->string_of_body_context),
+            ctx->renderBodyContext,
             env->show_env,
             show_stack({topping, base}),
           )
