@@ -345,7 +345,6 @@ let string_of_entrace = entrance =>
   | App => "a function body"
   }
 type redex =
-  | AppPrming(primitive, list<value>)
   | Applying(value, list<value>)
   | Setting(annotated<symbol>, value)
   | VecSetting(vector, int, value)
@@ -985,7 +984,6 @@ let transition = (state: continuing_state): state => {
       switch redex {
       | Setting(x, v) => setting(x, v, stk)
       | VecSetting(v, i, e) => doVecSet(v, i, e, stk)
-      | AppPrming(f, vs) => doAppPrm(f, vs, stk)
       | Applying(f, vs) => doApp(f, vs, stk)
       | Printing(v) => doPrint(v, stk)
       | Yielding(v) => yield(v, stk)

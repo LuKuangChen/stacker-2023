@@ -582,17 +582,6 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {env}
       </p>
 
-    | AppPrming(f, vs) =>
-      <p className="now box calling">
-        {React.string("Calling ")}
-        {blank(dummy_ann((AppPrm(f, vs->List.map(expr_of_value)): expression))->string_of_expr)}
-        <br />
-        {React.string("in context ")}
-        {ctx}
-        <br />
-        {React.string("in environment ")}
-        {env}
-      </p>
     | Applying(f, vs) =>
       <p className="now box calling">
         {React.string("Calling ")}
