@@ -350,6 +350,7 @@ type redex =
   | VecSetting(vector, int, value)
   | Printing(value)
   | Yielding(value)
+  | Nexting(generator)
 type continuing_state =
   // no env and no ctx
   | Returning(value, stack)
@@ -357,7 +358,6 @@ type continuing_state =
   | Entering(entrance, block, environment, stack)
   // all in
   | Reducing(redex, stack)
-  | Nexting(generator, stack)
 // a state always includes the heap. So we manage the heap as a global reference.
 type state =
   | Terminated(terminated_state)
@@ -601,7 +601,7 @@ and delta = (p, vs) =>
 
   | (Next, list{v}) =>
     stk => {
-      Continuing(Nexting(asGen(v), stk))
+      Continuing(Reducing(Nexting(asGen(v)), stk))
     }
 
   | _otherwise => {
@@ -978,11 +978,11 @@ let transition = (state: continuing_state): state => {
   try {
     switch state {
     | Returning(v, stk: stack) => return(v, stk)
-    | Nexting(gen, stk) => doNext(gen, stk)
     | Entering(_, b, env, stk: stack) => doEntering(b, env, stk)
     | Reducing(redex, stk: stack) =>
       switch redex {
       | Setting(x, v) => setting(x, v, stk)
+      | Nexting(gen) => doNext(gen, stk)
       | VecSetting(v, i, e) => doVecSet(v, i, e, stk)
       | Applying(f, vs) => doApp(f, vs, stk)
       | Printing(v) => doPrint(v, stk)

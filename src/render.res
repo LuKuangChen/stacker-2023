@@ -598,6 +598,19 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {env}
       </p>
 
+    | Nexting(id, _status) => {
+      <p className="now box calling">
+        {React.string("Advancing ")}
+        {{blank(`@${id |> Int.toString}`)}}
+        <br />
+        {React.string("in context ")}
+        {ctx}
+        <br />
+        {React.string("in environment ")}
+        {env}
+      </p>
+      }
+
     | Setting(x, v) =>
       <p className="now box replacing">
         {React.string("Rebinding a variable ")}
@@ -661,16 +674,6 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
             <br />
             {React.string("in environment ")}
             {show_env(env)}
-          </p>
-        show_state(stk, now)
-      }
-
-    | Nexting((id, _status), stk) => {
-        let stk = show_stack(stk)
-        let now =
-          <p className="now box called">
-            {React.string(`Advancing the generator `)}
-            {blank(`@${id |> Int.toString}`)}
           </p>
         show_state(stk, now)
       }
