@@ -10,11 +10,51 @@ open SMoL
 open SExpression
 open Runtime
 
-type syntax_kind =
-  | Lispy
-  | JavaScript
-  | Python
-  | Common
+let substituteById = (p: Print.t<'id>, id: 'id, q: Print.t<'id>): Print.t<'id> => {
+  let rec sub = ({ann, it}: print<'id>): print<'id> => {
+    if ann == Some(id) {
+      {ann, it: q}
+    } else {
+      let it = switch it {
+      | Plain(s) => Plain(s)
+      | Group(es) => Group(List.map(es, sub))
+      }
+      {ann, it}
+    }
+  }
+  switch p {
+  | Plain(s) => Plain(s)
+  | Group(es) => Group(List.map(es, sub))
+  }
+}
+
+module Syntax = {
+  type t =
+    | Lispy
+    | Python
+    | JavaScript
+    | Pseudo
+  let toString = t => {
+    switch t {
+    | Lispy => "Lispy"
+    | Python => "Python"
+    | JavaScript => "JavaScript"
+    | Pseudo => "Pseudo"
+    }
+  }
+  let fromString = s => {
+    switch s {
+    | "Lispy" => Some(Lispy)
+    | "PY" => Some(Python)
+    | "Python" => Some(Python)
+    | "JS" => Some(JavaScript)
+    | "JavaScript" => Some(JavaScript)
+    | "Pseudo" => Some(Pseudo)
+    | _ => None
+    }
+  }
+  let all = [Lispy, Python, JavaScript, Pseudo]
+}
 
 let id = x => x
 
@@ -92,28 +132,26 @@ let safe_f = (string_of, safe_string_of, src) => {
 }
 
 exception Impossible(string)
-let render: (syntax_kind, state) => React.element = (sk, s) => {
-
+let render: (Syntax.t, state) => React.element = (sk, s) => {
   let printName = switch sk {
   | Lispy => SMoLPrinter.printName
   | JavaScript => JSPrinter.printName
   | Python => PYPrinter.printName
-  | Common => PCPrinter.printName
+  | Pseudo => PCPrinter.printName
+  }
+
+  let printTerm = switch sk {
+  | Lispy => SMoLPrinter.printStandAloneTerm
+  | JavaScript => JSPrinter.printStandAloneTerm
+  | Python => PYPrinter.printStandAloneTerm
+  | Pseudo => PCPrinter.printStandAloneTerm
   }
 
   let printOutput = switch sk {
   | Lispy => SMoLPrinter.printOutput
   | JavaScript => JSPrinter.printOutput
   | Python => PYPrinter.printOutput
-  | Common => PCPrinter.printOutput
-  }
-
-  let printExp = (e: expressionNode<_>): string => {
-    failwith("TODO")
-  }
-
-  let printTerm = (e: termNode<_>): string => {
-    failwith("TODO")
+  | Pseudo => PCPrinter.printOutput
   }
 
   let dummyAnn = it => {
@@ -123,31 +161,68 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     }
   }
 
+  let printTerm = (t: termNode<_>): string => {
+    printTerm(dummyAnn(t))
+  }
+
+  let printExp = (e: expressionNode<sourceLocation>): string => {
+    printTerm(Exp(e))
+  }
+
   let expr_of_value = (v: value): expressionNode<_> => {
     switch v {
     // Constants
     | Con(constant) => Con(constant)
     // Functions
-    | VFun(function) => Con(Sym(function.id |> Int.toString))
-    | VGen(generator) => Con(Sym(generator.id |> Int.toString))
+    | VFun(function) => Con(Sym(`@${function.id |> Int.toString}`))
+    | VGen(generator) => Con(Sym(`@${generator.id |> Int.toString}`))
     // Vectors
-    | Vec(vector) => Con(Sym(vector.id |> Int.toString))
+    | Vec(vector) => Con(Sym(`@${vector.id |> Int.toString}`))
     }
   }
 
-  let printOutputlet = (sk, ol) => {
-    printOutput(list{ol})
+  let printVal = (v: value) => {
+    printExp(v->expr_of_value)
   }
 
-  let displayValue = v => {
-    v |> outputletOfValue |> printOutputlet(sk)
+  let printOfValue = (v: value): Print.t<'id> => {
+    Plain(printVal(v))
   }
 
   let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
-    failwith("todo")
+    let {topping, base} = ctx
+    let print = ref(base.base.ann.print)
+    // plug values in
+    topping->List.forEach(f => {
+      valuesOfFrame(f)->List.forEach(((v, id)) => {
+        print := substituteById(print.contents, id, printOfValue(v))
+      })
+    })
+    // plug hole in
+    let hole = Option.getWithDefault(
+      topping -> List.head -> Option.map(holeOfFrame),
+      holeOfBodyBase(base.base.it)
+    )
+    print := substituteById(print.contents, hole, Plain("◌"))
+    // convert to React.element
+    blank(Print.toString(print.contents))
   }
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
-    failwith("todo")
+    let {topping, base} = ctx
+    let print = ref(base.ann.print)
+    topping->List.forEach(f => {
+      valuesOfFrame(f)->List.forEach(((v, id)) => {
+        print := substituteById(print.contents, id, printOfValue(v))
+      })
+    })
+    // plug hole in
+    let hole = Option.getWithDefault(
+      topping -> List.head -> Option.map(holeOfFrame),
+      holeOfProgramBase(base.it)
+    )
+    print := substituteById(print.contents, hole, Plain("◌"))
+    // convert to React.element
+    blank(Print.toString(print.contents))
   }
 
   let show_envFrm = (frm: environmentFrame) => {
@@ -163,7 +238,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               {blank(x.ann.print |> Print.toString)}
               <span ariaHidden={true}> {React.string(" ↦ ")} </span>
               <span className="sr-only"> {React.string("to")} </span>
-              {blank(v.contents->Option.map(displayValue)->Option.getWithDefault("💣"))}
+              {blank(v.contents->Option.map(printVal)->Option.getWithDefault("💣"))}
             </span>
           }),
         )}
@@ -255,7 +330,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           }}
         </li>
       }
-    | VFun({id, isGen, name, sourceLocation: ann, xs, body, print, env}) => {
+    | VFun({id, isGen, sourceLocation: ann, print, env}) => {
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
@@ -288,7 +363,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           {React.string("vec")}
           {React.array(
             vs
-            ->Array.map(displayValue)
+            ->Array.map(printVal)
             ->Array.map(blank)
             ->Array.mapWithIndex((i, e) =>
               <span key={Int.toString(i)}>
@@ -320,7 +395,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | RedefinedIdentifier(symbol, env_id) =>
       `The variable \`${symbol}\` is defined more than once in the \`@${env_id}\` environment.`
     | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
-    | ExpectButGiven(string, value) => `Expecting a ${string}, given ${displayValue(value)}.`
+    | ExpectButGiven(string, value) => `Expecting a ${string}, given ${printVal(value)}.`
     | ArityMismatch(arity, int) =>
       `Expecting a function that accept ${Int.toString(
           int,
@@ -390,9 +465,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         } else {
           <>
             <h1> {React.string("Output: ")} </h1>
-            <pre className="stdout">
-              {printOutput(List.reverse(stdout)) |> React.string}
-            </pre>
+            <pre className="stdout"> {printOutput(List.reverse(stdout)) |> React.string} </pre>
           </>
         }}
       </section>
@@ -409,7 +482,6 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | Tm =>
       <div className="now box terminated">
         <p> {React.string("Terminated")} </p>
-        // {blank(String.concat("\n", allVals->List.fromArray->List.map(v => v |> displayValue)))}
       </div>
     }
   }
@@ -455,7 +527,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {env}
       </p>
 
-    | Nexting({id, status}) =>
+    | Nexting({id}) =>
       <p className="now box calling">
         {React.string("Resuming ")}
         {blank(`@${id |> Int.toString}`)}
@@ -469,8 +541,8 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
 
     | Setting(x, v) =>
       let x = {
-        let { ann: { sourceLocation, print }, it } = x
-        { ann: sourceLocation, it }
+        let {ann: {sourceLocation}, it} = x
+        {ann: sourceLocation, it}
       }
       <p className="now box replacing">
         {React.string("Rebinding a variable ")}
@@ -496,8 +568,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               expr_of_value(Con(Num(i |> Int.toFloat))) |> dummyAnn,
               expr_of_value(v_val) |> dummyAnn,
             },
-          )
-          ->printExp,
+          )->printExp,
         )}
         <br />
         {React.string("in context ")}
@@ -516,7 +587,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           <div className="now box returning">
             <p>
               {React.string("Returning ")}
-              {blank(v->displayValue)}
+              {blank(v->printVal)}
             </p>
           </div>
         show_state(stk, now)

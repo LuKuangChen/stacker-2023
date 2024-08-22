@@ -30,14 +30,28 @@ let new_pile = base => {topping: list{}, base}
 let add_pile = (new_topping, {topping, base}) => {topping: list{new_topping, ...topping}, base}
 
 type bodyBaseNode =
-  | BdyDef(annotated<symbol, printAnn>, unit, block<printAnn>)
-  | BdyExp(unit, block<printAnn>)
-  | BdyRet
+  | BdyDef(annotated<symbol, printAnn>, (unit, sourceLocation), block<printAnn>)
+  | BdyExp((unit, sourceLocation), block<printAnn>)
+  | BdyRet((unit, sourceLocation))
 type bodyBaseBase = annotated<bodyBaseNode, printAnn>
 type programBaseNode =
-  | PDef(annotated<symbol, printAnn>, unit, program<printAnn>)
-  | PExp(unit, program<printAnn>)
+  | PDef(annotated<symbol, printAnn>, (unit, sourceLocation), program<printAnn>)
+  | PExp((unit, sourceLocation), program<printAnn>)
 type programBase = annotated<programBaseNode, printAnn>
+
+let holeOfBodyBase = (bodyBaseNode: bodyBaseNode): sourceLocation => {
+  switch bodyBaseNode {
+  | BdyDef(_, ((), sourceLocation), _) => sourceLocation
+  | BdyExp(((), sourceLocation), _) => sourceLocation
+  | BdyRet(((), sourceLocation)) => sourceLocation
+  }
+}
+let holeOfProgramBase = (programBaseNode: programBaseNode): sourceLocation => {
+  switch programBaseNode {
+  | PDef(_, ((), sourceLocation), _) => sourceLocation
+  | PExp(((), sourceLocation), _) => sourceLocation
+  }
+}
 
 module EnvironmentID = {
   type t =
@@ -46,9 +60,9 @@ module EnvironmentID = {
     | Extended(int)
   let toString = envID => {
     switch envID {
-    | Primordial => "primordial"
+    | Primordial => "primordial-env"
     | TopLevel => "top-level"
-    | Extended(i) => `@${Int.toString(i)}`
+    | Extended(i) => `${Int.toString(i)}`
     }
   }
 }
@@ -72,11 +86,11 @@ and function = {
   id: int,
   isGen: bool,
   name: ref<option<string>>,
-  sourceLocation:sourceLocation,
+  sourceLocation: sourceLocation,
   xs: array<annotated<symbol, printAnn>>,
   body: block<printAnn>,
   env: environment,
-  print: print<sourceLocation>
+  print: print<sourceLocation>,
 }
 and generator = {
   id: int,
@@ -91,26 +105,68 @@ and value =
   // Vectors
   | Vec(vector)
 and contextFrame =
-  | Yield1(unit)
-  | Set1(annotated<symbol, printAnn>, unit)
-  | App1(unit, list<expression<printAnn>>)
-  | App2(value, list<value>, unit, list<expression<printAnn>>)
-  | AppPrm1(SMoL.Primitive.t, list<value>, unit, list<expression<printAnn>>)
+  | Yield1((unit, sourceLocation))
+  | Set1(annotated<symbol, printAnn>, (unit, sourceLocation))
+  | App1((unit, sourceLocation), list<expression<printAnn>>)
+  | App2(
+      (value, sourceLocation),
+      list<(value, sourceLocation)>,
+      (unit, sourceLocation),
+      list<expression<printAnn>>,
+    )
+  | AppPrm1(
+      SMoL.Primitive.t,
+      list<(value, sourceLocation)>,
+      (unit, sourceLocation),
+      list<expression<printAnn>>,
+    )
   | Let1(
-      list<(annotated<symbol, printAnn>, value)>,
-      (annotated<symbol, printAnn>, unit),
+      list<(annotated<symbol, printAnn>, (value, sourceLocation))>,
+      (annotated<symbol, printAnn>, (unit, sourceLocation)),
       list<bind<printAnn>>,
       block<printAnn>,
     )
-  | If1(unit, expression<printAnn>, expression<printAnn>)
+  | If1((unit, sourceLocation), expression<printAnn>, expression<printAnn>)
   | Cnd1(
-      unit,
+      (unit, sourceLocation),
       block<printAnn>,
       list<(expression<printAnn>, block<printAnn>)>,
       option<block<printAnn>>,
     )
-  | Bgn1(unit, list<expression<printAnn>>, expression<printAnn>)
+  | Bgn1((unit, sourceLocation), list<expression<printAnn>>, expression<printAnn>)
 and frame<'base> = {ctx: pile<contextFrame, 'base>, env: environment}
+
+let rmSrcLoc = ((it, _): ('a, sourceLocation)): 'a => {
+  it
+}
+
+let holeOfFrame = (f: contextFrame): sourceLocation => {
+  switch f {
+  | Yield1((_, srcLoc)) => srcLoc
+  | Set1(_, ((), srcLoc)) => srcLoc
+  | App1(((), srcLoc), _) => srcLoc
+  | App2(_, _, ((), srcLoc), _) => srcLoc
+  | AppPrm1(_, _, ((), srcLoc), _) => srcLoc
+  | Let1(_, (_, (_, srcLoc)), _, _) => srcLoc
+  | If1(((), srcLoc), _, _) => srcLoc
+  | Cnd1(((), srcLoc), _, _, _) => srcLoc
+  | Bgn1(((), srcLoc), _, _) => srcLoc
+  }
+}
+
+let valuesOfFrame = (f: contextFrame): list<(value, sourceLocation)> => {
+  switch f {
+  | Yield1(_) => list{}
+  | Set1(_, _) => list{}
+  | App1(_, _) => list{}
+  | App2(v, vs, _, _) => list{v, ...vs}
+  | AppPrm1(_, vs, _, _) => vs
+  | Let1(xvs, _, _, _) => List.map(xvs, ((x, v)) => v)
+  | If1(_, _, _) => list{}
+  | Cnd1(_, _, _, _) => list{}
+  | Bgn1(_, _, _) => list{}
+  }
+}
 
 let printCon = constant => SMoLPrinter.printOutput(list{SMoL.OVal(Con(constant))})
 
@@ -127,7 +183,7 @@ let printValue = (v: value) => {
 let makePrimitiveName = name => {
   {
     it: name,
-    ann: {print: Plain(name),sourceLocation: {begin: {ln: 0, ch: 0}, end: {ln: 0, ch: 0}}},
+    ann: {print: Plain(name), sourceLocation: {begin: {ln: 0, ch: 0}, end: {ln: 0, ch: 0}}},
   }
 }
 
@@ -659,18 +715,14 @@ and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: env
   switch topping {
   | list{} =>
     switch base.it {
-    | PDef(x, (), p) =>
+    | PDef(x, ((), srcLoc), p) =>
       doSet(env, x, v)
       transitionPrg(p, env)
-    | PExp((), p) =>
+    | PExp(((), srcLoc), p) =>
       if printTopLevel.contents {
         switch v {
         | Con(Uni) => transitionPrg(p, env)
-        | v => Continuing(
-          Reducing(
-            Printing(v),
-            new_pile({env, ctx})
-          ))
+        | v => Continuing(Reducing(Printing(v), new_pile({env, ctx})))
         }
       } else {
         transitionPrg(p, env)
@@ -687,14 +739,14 @@ and continueBody = (v: value, ctx, env, stk): state => {
   switch topping {
   | list{} =>
     switch base.it {
-    | BdyRet => {
+    | BdyRet((), srcLoc) => {
         isGen->Option.forEach(({status}) => {
           status := Done
         })
         Continuing(Returning(v, stk))
       }
-    | BdyExp((), b) => transitionBlock(b, isGen, env, stk)
-    | BdyDef(x, (), b) => {
+    | BdyExp(((), srcLoc), b) => transitionBlock(b, isGen, env, stk)
+    | BdyDef(x, ((), srcLoc), b) => {
         doSet(env, x, v)
         transitionBlock(b, isGen, env, stk)
       }
@@ -705,30 +757,31 @@ and continueBody = (v: value, ctx, env, stk): state => {
 }
 and handleCtxFrame = (v: value, ctxFrame, stk: stack) => {
   switch ctxFrame {
-  | Set1(x, ()) => Continuing(Reducing(Setting(x, v), stk))
-  | Let1(xvs, (x, ()), xes, b) => transitionLet(list{(x, v), ...xvs}, xes, b, stk)
-  | App1((), exps) =>
+  | Set1(x, ((), srcLoc)) => Continuing(Reducing(Setting(x, v), stk))
+  | Let1(xvs, (x, ((), srcLoc)), xes, b) =>
+    transitionLet(list{(x, (v, srcLoc)), ...xvs}, xes, b, stk)
+  | App1(((), srcLoc), exps) =>
     let fun = v
     and vals = list{}
+    transitionApp((fun, srcLoc), vals, exps, stk)
+  | App2(fun, vals, ((), srcLoc), exps) =>
+    let vals = list{(v, srcLoc), ...vals}
     transitionApp(fun, vals, exps, stk)
-  | App2(fun, vals, (), exps) =>
-    let vals = list{v, ...vals}
-    transitionApp(fun, vals, exps, stk)
-  | AppPrm1(fun, vals, (), exps) =>
-    let vals = list{v, ...vals}
+  | AppPrm1(fun, vals, ((), srcLoc), exps) =>
+    let vals = list{(v, srcLoc), ...vals}
     transitionAppPrm(fun, vals, exps, stk)
-  | Cnd1((), b, ebs, ob) =>
+  | Cnd1(((), srcLoc), b, ebs, ob) =>
     switch asLgc(v) {
     | true => doBlk(b, None, stk)
     | false => transitionCnd(ebs, ob, stk)
     }
-  | If1((), e_thn, e_els) =>
+  | If1(((), srcLoc), e_thn, e_els) =>
     switch asLgc(v) {
     | true => doEv(e_thn, stk)
     | false => doEv(e_els, stk)
     }
-  | Bgn1((), es, e) => transitionBgn(es, e, stk)
-  | Yield1() =>
+  | Bgn1(((), srcLoc), es, e) => transitionBgn(es, e, stk)
+  | Yield1((), srcLoc) =>
     // switch stk {}
     Continuing(Reducing(Yielding(v), stk))
   }
@@ -742,7 +795,7 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
     return(val, stk)
   | Set(x, e) =>
     let exp = e
-    doEv(exp, consCtx(Set1(x, ()), stk))
+    doEv(exp, consCtx(Set1(x, ((), exp.ann.sourceLocation)), stk))
   | Lam(xs, b) => {
       let id = newHavId()
       let v: value = VFun({
@@ -753,7 +806,7 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         xs: xs |> Js.List.toVector,
         body: b,
         env: current_env(stk),
-        print: getPrint(exp)
+        print: getPrint(exp),
       })
       allHavs := list{v, ...allHavs.contents}
       return(v, stk)
@@ -764,11 +817,11 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         id,
         isGen: false,
         name: ref(None),
-       sourceLocation: exp.ann.sourceLocation,
+        sourceLocation: exp.ann.sourceLocation,
         xs: xs |> Js.List.toVector,
         body: b,
         env: current_env(stk),
-        print: getPrint(exp)
+        print: getPrint(exp),
       })
       allHavs := list{v, ...allHavs.contents}
       return(v, stk)
@@ -781,10 +834,11 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
   | AppPrm(p, es) => transitionAppPrm(p, list{}, es, stk)
   | App(e, es) =>
     let exp = e
-    doEv(exp, consCtx(App1((), es), stk))
+    doEv(exp, consCtx(App1(((), exp.ann.sourceLocation), es), stk))
   | Cnd(ebs, ob) => transitionCnd(ebs, ob, stk)
-  | If(e_cnd, e_thn, e_els) => doEv(e_cnd, consCtx(If1((), e_thn, e_els), stk))
-  | Yield(e) => doEv(e, consCtx(Yield1(), stk))
+  | If(e_cnd, e_thn, e_els) =>
+    doEv(e_cnd, consCtx(If1(((), e_cnd.ann.sourceLocation), e_thn, e_els), stk))
+  | Yield(e) => doEv(e, consCtx(Yield1((), e.ann.sourceLocation), stk))
   }
 and transitionLetrec = (ann, xes: list<bind<printAnn>>, b: block<printAnn>, stk: stack) => {
   raiseRuntimeError(AnyError("letrec is no longer supported"))
@@ -806,40 +860,70 @@ and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
       let xs = xvs->Array.map(((x, _v)) => x)
       let env = extend(current_env(stk), Array.concat(xs, xsOfBlock(b) |> List.toArray))
       xvs->Array.forEach(((x, v)) => {
-        doSet(env, x, v)
+        doSet(env, x, rmSrcLoc(v))
       })
       Continuing(entering(Let, b, env, stk))
     }
 
-  | list{{it: (x, e)}, ...xes} => doEv(e, consCtx(Let1(xvs, (x, ()), xes, b), stk))
+  | list{{it: (x, e)}, ...xes} =>
+    doEv(e, consCtx(Let1(xvs, (x, ((), e.ann.sourceLocation)), xes, b), stk))
   }
 }
 and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, stk: stack) => {
   switch b {
   | BRet(it) =>
     let exp = {it, ann}
-    doEv(
-      exp,
-      add_pile(
-        {ctx: new_pile({isGen, base: { it: BdyRet, ann }}), env},
-        stk))
+    doEv(exp, add_pile({ctx: new_pile({isGen, base: {it: BdyRet((), exp.ann.sourceLocation), ann}}), env}, stk))
   | BCons(t, b) =>
     switch t.it {
     | Exp(it) => {
         let exp = {it, ann}
-        doEv(exp, add_pile({ctx: new_pile({isGen, base: { ann, it: BdyExp((), b)}}), env}, stk))
+        doEv(
+          exp,
+          add_pile(
+            {ctx: new_pile({isGen, base: {ann, it: BdyExp(((), exp.ann.sourceLocation), b)}}), env},
+            stk,
+          ),
+        )
       }
     | Def(Var(x, e0)) => {
         let exp = e0
-        doEv(exp, add_pile({ctx: new_pile({isGen, base: { ann, it: BdyDef(x, (), b)}}), env}, stk))
+        doEv(
+          exp,
+          add_pile(
+            {
+              ctx: new_pile({isGen, base: {ann, it: BdyDef(x, ((), exp.ann.sourceLocation), b)}}),
+              env,
+            },
+            stk,
+          ),
+        )
       }
     | Def(Fun(f, xs, b)) => {
         let exp = {it: Lam(xs, b), ann}
-        doEv(exp, add_pile({ctx: new_pile({isGen, base: { ann, it: BdyDef(f, (), b)}}), env}, stk))
+        doEv(
+          exp,
+          add_pile(
+            {
+              ctx: new_pile({isGen, base: {ann, it: BdyDef(f, ((), exp.ann.sourceLocation), b)}}),
+              env,
+            },
+            stk,
+          ),
+        )
       }
     | Def(GFun(f, xs, b)) => {
         let exp = {it: GLam(xs, b), ann}
-        doEv(exp, add_pile({ctx: new_pile({isGen, base: { ann, it: BdyDef(f, (), b)}}), env}, stk))
+        doEv(
+          exp,
+          add_pile(
+            {
+              ctx: new_pile({isGen, base: {ann, it: BdyDef(f, ((), exp.ann.sourceLocation), b)}}),
+              env,
+            },
+            stk,
+          ),
+        )
       }
     }
   // | list{{ann, it: Def(Fun(f, xs, b))}, ...ts} =>
@@ -856,16 +940,16 @@ and transitionPrg = (p, env: environment) => {
   | PNil => Terminated(Tm)
   | PCons({ann: _, it: Def(Var(x, e0))}, pRest) =>
     let exp = e0
-    doEv(exp, new_pile({env, ctx: new_pile({ ann: p.ann, it: PDef(x, (), pRest)})}))
+    doEv(exp, new_pile({env, ctx: new_pile({ann: p.ann, it: PDef(x, ((), exp.ann.sourceLocation), pRest)})}))
   | PCons({ann, it: Def(Fun(f, xs, b))}, pRest) =>
     let exp = {it: Lam(xs, b), ann}
-    doEv(exp, new_pile({env, ctx: new_pile({ ann: p.ann, it: PDef(f, (), pRest)})}))
+    doEv(exp, new_pile({env, ctx: new_pile({ann: p.ann, it: PDef(f, ((), exp.ann.sourceLocation), pRest)})}))
   | PCons({ann, it: Def(GFun(f, xs, b))}, pRest) =>
     let exp = {it: GLam(xs, b), ann}
-    doEv(exp, new_pile({env, ctx: new_pile({ ann: p.ann, it: PDef(f, (), pRest)})}))
+    doEv(exp, new_pile({env, ctx: new_pile({ann: p.ann, it: PDef(f, ((), exp.ann.sourceLocation), pRest)})}))
   | PCons({it: Exp(e0), ann}, pRest) =>
     let exp = {it: e0, ann}
-    doEv(exp, new_pile({env, ctx: new_pile({ ann: p.ann, it: PExp((), pRest)})}))
+    doEv(exp, new_pile({env, ctx: new_pile({ann: p.ann, it: PExp(((), exp.ann.sourceLocation), pRest)})}))
   }
 }
 and transitionCnd = (ebs, ob, stk: stack) => {
@@ -877,14 +961,14 @@ and transitionCnd = (ebs, ob, stk: stack) => {
     }
   | list{(e, b), ...ebs} => {
       let exp = e
-      doEv(exp, consCtx(Cnd1((), b, ebs, ob), stk))
+      doEv(exp, consCtx(Cnd1(((), e.ann.sourceLocation), b, ebs, ob), stk))
     }
   }
 }
 and transitionBgn = (es, e, stk: stack) => {
   switch es {
   | list{} => doEv(e, stk)
-  | list{e0, ...es} => doEv(e0, consCtx(Bgn1((), es, e), stk))
+  | list{e0, ...es} => doEv(e0, consCtx(Bgn1(((), e0.ann.sourceLocation), es, e), stk))
   }
 }
 // and doLoop = (e, b, exp, stk: stack) => {
@@ -933,7 +1017,7 @@ and entering = (entrance, b, env, stk) => {
   // tail-call optimization
   | {
       topping: list{
-        {ctx: {topping: list{}, base: {isGen: None, base: { ann: b, it: BdyRet}}}, env: _},
+        {ctx: {topping: list{}, base: {isGen: None, base: {ann: b, it: BdyRet(_)}}}, env: _},
         ...topping,
       },
       base,
@@ -947,35 +1031,40 @@ and doEntering = (b: block<printAnn>, env, stk): state => {
 }
 and transitionAppPrm = (
   f: primitive,
-  vs: list<value>,
+  vs: list<(value, sourceLocation)>,
   es: list<expression<printAnn>>,
   stk: stack,
 ) => {
   switch es {
   | list{} => {
       let vs = List.reverse(vs)
-      doAppPrm(f, vs, stk)
+      doAppPrm(f, List.map(vs, rmSrcLoc), stk)
     }
 
   | list{e, ...es} =>
     let exp = e
-    doEv(exp, consCtx(AppPrm1(f, vs, (), es), stk))
+    doEv(exp, consCtx(AppPrm1(f, vs, ((), exp.ann.sourceLocation), es), stk))
   }
 }
-and transitionApp = (f: value, vs: list<value>, es: list<expression<printAnn>>, stk: stack) => {
+and transitionApp = (
+  f: (value, sourceLocation),
+  vs: list<(value, sourceLocation)>,
+  es: list<expression<printAnn>>,
+  stk: stack,
+) => {
   switch es {
   | list{} => {
       let vs = List.reverse(vs)
+      let f = rmSrcLoc(f)
+      let vs = List.map(vs, rmSrcLoc)
       switch f {
-      // Don't pause if we are applying a primitive operator
-      // | VFun(Prm(_)) => doApp(f, vs, stk)
       | _ => Continuing(Reducing(Applying(f, vs), stk))
       }
     }
 
   | list{e, ...es} =>
     let exp = e
-    doEv(exp, consCtx(App2(f, vs, (), es), stk))
+    doEv(exp, consCtx(App2(f, vs, ((), exp.ann.sourceLocation), es), stk))
   }
 }
 and doBlk = (b: block<printAnn>, isGen, stk: stack): state => {
@@ -990,7 +1079,7 @@ and doBlk = (b: block<printAnn>, isGen, stk: stack): state => {
   // tail-call optimization
   | {
       topping: list{
-        {ctx: {topping: list{}, base: {isGen: None, base: { it: BdyRet }}}, env: _},
+        {ctx: {topping: list{}, base: {isGen: None, base: {it: BdyRet(_)}}}, env: _},
         ...topping,
       },
       base,
