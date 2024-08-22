@@ -19,7 +19,7 @@
   },
   "bs-dependencies": [
     "@rescript/react",
-    "@lukuangchen/s-expression",
-    "@lukuangchen/smol-translator"
+    "@brownplt/s-expression",
+    "@brownplt/smol-translator"
   ]
 }

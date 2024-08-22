@@ -33,10 +33,10 @@ let make = (~syntax, ~program, ~readOnly, ~setProgram) => {
     setProgram(_ => s)
   }
   switch syntax {
-  | Render.Lispy => <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  | Render.Syntax.Lispy => <SMoLCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   | JavaScript => <JavaScriptCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   | Python => <PythonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
-  | Common => <CommonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
+  | Pseudo => <CommonCodeMirror value=program readOnly={readOnly} onChange={onChange} />
   }
   // let onChange = evt => {
   //   let s = ReactEvent.Form.currentTarget(evt)["value"]

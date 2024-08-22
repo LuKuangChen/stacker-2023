@@ -1,5 +1,6 @@
 open Belt
 open SMoL
+open Render
 
 @module("./url_parameters") external syntaxAtURL: string = "syntaxAtURL"
 @module("./url_parameters") external printTopLevelAtURL: bool = "printTopLevelAtURL"
@@ -47,26 +48,6 @@ module FontSize = {
   }
 }
 
-let parseSyntax = newValue =>
-  switch newValue {
-  | "SMoL" => Some(Render.Lispy)
-  | "Lispy" => Some(Render.Lispy)
-  | "JS" => Some(JavaScript)
-  | "JavaScript" => Some(JavaScript)
-  | "PY" => Some(Python)
-  | "Python" => Some(Python)
-  | "CM" => Some(Common)
-  | "Common" => Some(Common)
-  | _ => None
-  }
-let syntax_as_string = sk =>
-  switch sk {
-  | Render.Lispy => "Lispy"
-  | JavaScript => "JavaScript"
-  | Python => "Python"
-  | Common => "Common"
-  }
-
 type running_state = {
   prevs: list<React.element>,
   now: React.element,
@@ -91,27 +72,46 @@ let new_randomSeed = () => {
 
 type state = {
   running: option<running_state>,
-  preview: option<Render.syntax_kind>,
+  previewSyntax: option<Render.Syntax.t>,
 }
 
 type randomSeedConfig = {isSet: bool, randomSeed: string}
 
-let make_preview = (sk, program) => {
-  switch program->SMoL.Parser.parseProgram |> Render.adjust_syntax(sk).unsafe_string_of_program {
+let translateProgram = (sk, printTopLevel, p) => {
+  open Render.Syntax
+  switch sk {
+  | Lispy => SMoL.SMoLTranslator.translateProgram(printTopLevel, p)
+  | Python => SMoL.PYTranslator.translateProgram(printTopLevel, p)
+  | JavaScript => SMoL.JSTranslator.translateProgram(printTopLevel, p)
+  | Pseudo => SMoL.PCTranslator.translateProgram(printTopLevel, p)
+  }
+}
+
+let translateProgramFull = (sk, printTopLevel, p) => {
+  open Render.Syntax
+  switch sk {
+  | Lispy => SMoL.SMoLTranslator.translateProgramFull(printTopLevel, p)
+  | Python => SMoL.PYTranslator.translateProgramFull(printTopLevel, p)
+  | JavaScript => SMoL.JSTranslator.translateProgramFull(printTopLevel, p)
+  | Pseudo => SMoL.PCTranslator.translateProgramFull(printTopLevel, p)
+  }
+}
+
+let make_preview = (sk: Syntax.t, printTopLevel, program) => {
+  switch translateProgram(sk, printTopLevel, program) {
   | program =>
     <>
       <span>
         {React.string(`(Showing the `)}
-        <u> {React.string(sk |> syntax_as_string)} </u>
+        <u> {React.string(sk |> Syntax.toString)} </u>
         {React.string(` translation)`)}
       </span>
       <CodeEditor syntax={sk} program={program} readOnly={true} setProgram={_ => ()} />
     </>
-  | exception SMoLParseError(err) => {
-      let parseFeedback = ParseError.toString(err)
+  | exception SMoLTranslateError(err) => {
+      let parseFeedback = TranslateError.toString(err)
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
     }
-  | exception SMoLPrintError(err) => <span className="parse-feedback"> {React.string(err)} </span>
   }
 }
 
@@ -139,13 +139,11 @@ let make = () => {
     })
   }
   let (nNext, setNNext) = React.useState(_ => 0)
-  let (syntax, setSyntax) = React.useState(_ => {
-    if syntaxAtURL == "" {
-      None
-    } else {
-      parseSyntax(syntaxAtURL)
-    }
+  let (runtimeSyntax, setRuntimeSyntax) = React.useState(_ => {
+    Syntax.fromString(syntaxAtURL)
   })
+  let (previewSyntax: option<Render.Syntax.t>, setPreviewSyntax) = React.useState(_ => None)
+  let actualRuntimeSyntax = Option.orElse(runtimeSyntax, previewSyntax)->Option.getWithDefault(Render.Syntax.Lispy)
   let (printTopLevel, setPrintTopLevel) = React.useState(_ => printTopLevelAtURL)
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
     if randomSeedAtURL == "" {
@@ -154,8 +152,6 @@ let make = () => {
       {isSet: true, randomSeed: randomSeedAtURL}
     }
   })
-  let (preview: option<Render.syntax_kind>, setPreview) = React.useState(_ => None)
-  let runtime_syntax = Option.orElse(syntax, preview)->Option.getWithDefault(Render.Lispy)
   let forward = s => {
     switch s {
     | None => raise(Impossible)
@@ -164,7 +160,7 @@ let make = () => {
         let latestState = Runtime.transition(latestState)
         Some({
           prevs: list{now, ...prevs},
-          now: Render.render(runtime_syntax, latestState),
+          now: Render.render(actualRuntimeSyntax, latestState),
           nexts: list{},
           latestState,
         })
@@ -180,9 +176,9 @@ let make = () => {
     }
   }
   let loadProgram = program => {
-    switch parseSMoL(program) {
-    | exception SMoLParseError(err) => {
-        setParseFeedback(_ => ParseError.toString(err))
+    switch translateProgramFull(Option.getWithDefault(runtimeSyntax, Lispy), printTopLevel, program) {
+    | exception SMoLTranslateError(err) => {
+        setParseFeedback(_ => TranslateError.toString(err))
         None
       }
 
@@ -191,7 +187,7 @@ let make = () => {
         Some({
           prevs: list{},
           nexts: list{},
-          now: Render.render(runtime_syntax, s),
+          now: Render.render(actualRuntimeSyntax, s),
           latestState: s,
         })
       }
@@ -253,7 +249,7 @@ let make = () => {
   let onShare = (readOnlyMode, _evt) => {
     openPopUp(
       make_url(
-        runtime_syntax->syntax_as_string,
+        actualRuntimeSyntax->Syntax.toString,
         randomSeed.randomSeed,
         nNext,
         program,
@@ -294,9 +290,9 @@ let make = () => {
       {React.string("Next")}
       // <kbd> {React.string("k")} </kbd>
     </button>
-  let previewProgram = preview => {
+  let previewProgram = previewSyntax => {
     _event => {
-      setPreview(_ => preview)
+      setPreviewSyntax(_ => previewSyntax)
     }
   }
   let editorConfig = if readOnlyMode {
@@ -307,8 +303,8 @@ let make = () => {
       <select
         onChange={evt => {
           let fs: string = ReactEvent.Form.currentTarget(evt)["value"]
-          let fs = FontSize.fromString(fs);
-          setEditorFontSize(_ => fs);
+          let fs = FontSize.fromString(fs)
+          setEditorFontSize(_ => fs)
         }}>
         <option selected={FontSize.XXS == editorFontSize} value={FontSize.toString(XXS)}>
           {React.string(FontSize.toString(XXS))}
@@ -414,44 +410,30 @@ let make = () => {
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
       <span>
         {React.string("Show translation at right ➡️:")}
+        {React.array(
+          Syntax.all
+          ->Array.keep(s => s != Lispy)
+          ->Array.map(s => {
+            <label>
+              <input
+                disabled={is_running}
+                type_="radio"
+                name="previewSyntax"
+                value={s->Syntax.toString}
+                onClick={previewProgram(Some(s))}
+              />
+              <span> {React.string({s->Syntax.toString})} </span>
+            </label>
+          }),
+        )}
         <label>
           <input
             disabled={is_running}
             type_="radio"
-            name="preview"
-            value="JavaScript"
-            onClick={previewProgram(Some(JavaScript))}
-          />
-          <span> {React.string("JavaScript")} </span>
-        </label>
-        <label>
-          <input
-            disabled={is_running}
-            type_="radio"
-            name="preview"
-            value="Python"
-            onClick={previewProgram(Some(Python))}
-          />
-          <span> {React.string("Python")} </span>
-        </label>
-        <label>
-          <input
-            disabled={is_running}
-            type_="radio"
-            name="preview"
-            value="Common"
-            onClick={previewProgram(Some(Common))}
-          />
-          <span> {React.string("Common")} </span>
-        </label>
-        <label>
-          <input
-            disabled={is_running}
-            type_="radio"
-            name="preview"
+            name="previewSyntax"
             value="off"
             onClick={previewProgram(None)}
-            checked={preview == None}
+            checked={previewSyntax == None}
           />
           <span> {React.string("off")} </span>
         </label>
@@ -471,24 +453,19 @@ let make = () => {
         {
           let onChange = evt => {
             let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-            setSyntax(_ => parseSyntax(newValue))
+            setRuntimeSyntax(_ => Syntax.fromString(newValue))
           }
           <select onChange disabled={is_running}>
-            <option selected={None == syntax} value="auto">
-              {React.string(`Auto (${runtime_syntax |> syntax_as_string})`)}
+            <option selected={None == runtimeSyntax} value="auto">
+              {React.string(`Auto (${actualRuntimeSyntax |> Syntax.toString})`)}
             </option>
-            <option selected={Some(Render.Lispy) == syntax} value="Lispy">
-              {React.string("Lispy")}
-            </option>
-            <option selected={Some(Render.JavaScript) == syntax} value="JavaScript">
-              {React.string("JavaScript")}
-            </option>
-            <option selected={Some(Render.Python) == syntax} value="Python">
-              {React.string("Python")}
-            </option>
-            <option selected={Some(Render.Common) == syntax} value="Common">
-              {React.string("Common")}
-            </option>
+            {React.array(
+              Syntax.all->Array.map(s => {
+                <option selected={Some(s) == runtimeSyntax} value={Syntax.toString(s)}>
+                  {React.string({Syntax.toString(s)})}
+                </option>
+              }),
+            )}
           </select>
         }
       </label>
@@ -515,10 +492,7 @@ let make = () => {
         <input
           type_="checkbox"
           disabled={is_running}
-          checked={
-            // Js.Console.log2("printing top-level?", printTopLevel)
-            printTopLevel
-          }
+          checked={printTopLevel}
           onChange={_ => setPrintTopLevel(v => !v)}
         />
       </label>
@@ -547,17 +521,19 @@ let make = () => {
       }}>
       {exampleProgramsAndStopButtonShortcut}
       {editorConfig}
-      <div ariaLabel="the code editor, press Esc then Tab to escape!" style={{
-        fontSize: FontSize.toString(editorFontSize)
-      }}>
+      <div
+        ariaLabel="the code editor, press Esc then Tab to escape!"
+        style={{
+          fontSize: FontSize.toString(editorFontSize),
+        }}>
         <CodeEditor
           syntax={if is_running {
-            runtime_syntax
+            actualRuntimeSyntax
           } else {
             Lispy
           }}
-          program={if is_running && runtime_syntax != Lispy {
-            program->Parser.parseProgram->Render.adjust_syntax(runtime_syntax).string_of_program
+          program={if is_running {
+            translateProgram(actualRuntimeSyntax, printTopLevel, program)
           } else {
             program
           }}
@@ -595,7 +571,7 @@ let make = () => {
           <li>
             <a
               href={make_url(
-                runtime_syntax->syntax_as_string,
+                actualRuntimeSyntax->Syntax.toString,
                 "",
                 -1,
                 program,
@@ -625,9 +601,9 @@ let make = () => {
             </button>
             {React.string(".")}
           </p>
-          {switch preview {
+          {switch previewSyntax {
           | None => <> </>
-          | Some(sk) => make_preview(sk, program)
+          | Some(sk) => make_preview(sk, printTopLevel, program)
           }}
         </>
       | Some(s) => s.now
