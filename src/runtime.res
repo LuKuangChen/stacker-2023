@@ -1,9 +1,9 @@
 open Belt
 open SExpression
 open SMoL
+open Primitive
 
-type primitive = SMoL.Primitive.t
-open SMoL.Primitive
+type primitive = Primitive.t
 
 @module("./random") external make_random: string => array<unit => float> = "make_random"
 
@@ -72,10 +72,11 @@ and function = {
   id: int,
   isGen: bool,
   name: ref<option<string>>,
- sourceLocation:sourceLocation,
+  sourceLocation:sourceLocation,
   xs: array<annotated<symbol, printAnn>>,
   body: block<printAnn>,
   env: environment,
+  print: print<sourceLocation>
 }
 and generator = {
   id: int,
@@ -179,17 +180,12 @@ module IntHash = Belt.Id.MakeHashable({
   let eq = (a, b) => a == b
 })
 
-type rec printing =
-  | PCon(string)
-  | PRef(int)
-  | PVec(option<int>, list<printing>)
-
 // This is the pretty presentation of values
-let presentValue = (v: value): printing => {
+let outputletOfValue = (v: value): outputlet => {
   let hMap = Belt.HashMap.make(~hintSize=10, ~id=module(IntHash))
-  let rec p = (visited: list<int>, v: value) => {
+  let rec p = (visited: list<int>, v: value): val => {
     switch v {
-    | Con(constant) => PCon(printCon(constant))
+    | Con(constant) => Con(constant)
     | VFun(_) => raise(RuntimeError(AnyError("Can't print functions")))
     | VGen(_) => raise(RuntimeError(AnyError("Can't print generators")))
     | Vec({id, contents: es}) =>
@@ -202,15 +198,15 @@ let presentValue = (v: value): printing => {
           }
         | Some(r) => r
         }
-        PRef(r)
+        Ref(r)
       } else {
         let p = p(list{id, ...visited})
         let es = Array.map(es, p) |> List.fromArray
-        PVec(HashMap.get(hMap, id), es)
+        Struct(HashMap.get(hMap, id), Vec(es))
       }
     }
   }
-  p(list{}, v)
+  OVal(p(list{}, v))
 }
 
 let xsOfTerms = (ts: list<term<printAnn>>) => {
@@ -245,7 +241,7 @@ let allHavs: ref<list<value>> = ref(list{})
 let printTopLevel = ref(true)
 
 // the bool tells whether the message is an error
-let stdout: ref<list<printing>> = ref(list{})
+let stdout: ref<output> = ref(list{})
 let printStdout = s => {
   stdout := list{s, ...stdout.contents}
 }
@@ -628,7 +624,7 @@ and delta = (p, vs) =>
 
   | (Print, list{v}) => stk => Continuing(Reducing(Printing(v), stk))
 
-  // Js.Console.log(presentValue(v))
+  // Js.Console.log(outputletOfValue(v))
   // return(Con(Uni))
 
   | (Next, list{v}) =>
@@ -753,10 +749,11 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         id,
         isGen: false,
         name: ref(None),
-       sourceLocation: exp.ann.sourceLocation,
+        sourceLocation: exp.ann.sourceLocation,
         xs: xs |> Js.List.toVector,
         body: b,
         env: current_env(stk),
+        print: getPrint(exp)
       })
       allHavs := list{v, ...allHavs.contents}
       return(v, stk)
@@ -771,6 +768,7 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         xs: xs |> Js.List.toVector,
         body: b,
         env: current_env(stk),
+        print: getPrint(exp)
       })
       allHavs := list{v, ...allHavs.contents}
       return(v, stk)
@@ -926,7 +924,7 @@ and doApp = (v, vs, stk): state => {
   }
 }
 and doPrint = (v, stk): state => {
-  let v = presentValue(v)
+  let v = outputletOfValue(v)
   printStdout(v)
   return(Con(Uni), stk)
 }

@@ -93,20 +93,6 @@ let safe_f = (string_of, safe_string_of, src) => {
 
 exception Impossible(string)
 let render: (syntax_kind, state) => React.element = (sk, s) => {
-  let outputletOfValue = (v: value): SMoL.outputlet => {
-    let rec outputletOfValue = (v: value): SMoL.val => {
-      switch v {
-      // Constants
-      | Con(constant) => Con(constant)
-      // Functions
-      | VFun(function) => Con(Sym(function.id |> Int.toString))
-      | VGen(generator) => Con(Sym(generator.id |> Int.toString))
-      // Vectors
-      | Vec(vector) => Vec(vector.contents->Array.map(outputletOfValue)->List.fromArray)
-      }
-    }
-    SMoL.OVal(outputletOfValue(v))
-  }
 
   let printName = switch sk {
   | Lispy => SMoLPrinter.printName
@@ -122,12 +108,46 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
   | Common => PCPrinter.printOutput
   }
 
+  let printExp = (e: expressionNode<_>): string => {
+    failwith("TODO")
+  }
+
+  let printTerm = (e: termNode<_>): string => {
+    failwith("TODO")
+  }
+
+  let dummyAnn = it => {
+    {
+      ann: {begin: {ln: 0, ch: 0}, end: {ln: 0, ch: 0}},
+      it,
+    }
+  }
+
+  let expr_of_value = (v: value): expressionNode<_> => {
+    switch v {
+    // Constants
+    | Con(constant) => Con(constant)
+    // Functions
+    | VFun(function) => Con(Sym(function.id |> Int.toString))
+    | VGen(generator) => Con(Sym(generator.id |> Int.toString))
+    // Vectors
+    | Vec(vector) => Con(Sym(vector.id |> Int.toString))
+    }
+  }
+
   let printOutputlet = (sk, ol) => {
     printOutput(list{ol})
   }
 
-  let string_of_value = v => {
+  let displayValue = v => {
     v |> outputletOfValue |> printOutputlet(sk)
+  }
+
+  let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
+    failwith("todo")
+  }
+  let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
+    failwith("todo")
   }
 
   let show_envFrm = (frm: environmentFrame) => {
@@ -143,7 +163,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               {blank(x.ann.print |> Print.toString)}
               <span ariaHidden={true}> {React.string(" ↦ ")} </span>
               <span className="sr-only"> {React.string("to")} </span>
-              {blank(v.contents->Option.map(string_of_value)->Option.getWithDefault("💣"))}
+              {blank(v.contents->Option.map(displayValue)->Option.getWithDefault("💣"))}
             </span>
           }),
         )}
@@ -220,11 +240,11 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
                 {show_env(env)}
               </span>
             </>
-          | Suspended({topping, base}, env) =>
+          | Suspended(ctx, env) =>
             <>
               <br />
               {React.string("with context ")}
-              {{topping, base: {isGen: None, base}}->renderBodyContext}
+              {{...ctx, base: {isGen: None, base: ctx.base}}->renderBodyContext}
               <br />
               <span>
                 {React.string("with environment ")}
@@ -235,7 +255,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           }}
         </li>
       }
-    | VFun({id, isGen, name, sourceLocation: ann, xs, body, env}) => {
+    | VFun({id, isGen, name, sourceLocation: ann, xs, body, print, env}) => {
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
@@ -250,7 +270,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
               {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
               <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
             </summary>
-            {blank(string_of_fun(name.contents, xs |> List.fromArray, body))}
+            {blank(print.it |> Print.toString)}
             <br />
           </details>
           <span>
@@ -260,7 +280,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         </li>
       }
 
-    | Vec({ id, contents: vs}) => {
+    | Vec({id, contents: vs}) => {
         let id = id->Int.toString
         <li key id={`def-${id}`} className="vec box">
           {defblank(`@${id}`)}
@@ -268,7 +288,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           {React.string("vec")}
           {React.array(
             vs
-            ->Array.map(string_of_value)
+            ->Array.map(displayValue)
             ->Array.map(blank)
             ->Array.mapWithIndex((i, e) =>
               <span key={Int.toString(i)}>
@@ -300,7 +320,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | RedefinedIdentifier(symbol, env_id) =>
       `The variable \`${symbol}\` is defined more than once in the \`@${env_id}\` environment.`
     | UsedBeforeInitialization(symbol) => `The variable \`${symbol}\` hasn't been assigned a value.`
-    | ExpectButGiven(string, value) => `Expecting a ${string}, given ${string_of_value(value)}.`
+    | ExpectButGiven(string, value) => `Expecting a ${string}, given ${displayValue(value)}.`
     | ArityMismatch(arity, int) =>
       `Expecting a function that accept ${Int.toString(
           int,
@@ -333,7 +353,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       {React.string("Waiting for a value")}
       <br />
       {React.string("in context ")}
-      {blank(ctx->string_of_program_context)}
+      {ctx->renderProgramContext}
       <br />
       {React.string("in environment ")}
       {show_env(env)}
@@ -347,7 +367,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     </ol>
   }
 
-  let show_state = (stack, now, envs, heap, stdout) => {
+  let show_state = (stack, now, envs, heap, stdout: output) => {
     <article id="stacker-configuration" ariaLabel="the current stacker configuration">
       <section id="stack-and-now">
         <h1> {React.string("Stack & Current Task")} </h1>
@@ -371,9 +391,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           <>
             <h1> {React.string("Output: ")} </h1>
             <pre className="stdout">
-              {React.string(
-                String.concat("\n", List.reverse(stdout)->List.map(string_of_printing)),
-              )}
+              {printOutput(List.reverse(stdout)) |> React.string}
             </pre>
           </>
         }}
@@ -391,7 +409,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | Tm =>
       <div className="now box terminated">
         <p> {React.string("Terminated")} </p>
-        // {blank(String.concat("\n", allVals->List.fromArray->List.map(v => v |> string_of_value)))}
+        // {blank(String.concat("\n", allVals->List.fromArray->List.map(v => v |> displayValue)))}
       </div>
     }
   }
@@ -400,7 +418,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | Yielding(v) =>
       <p className="now box returning">
         {React.string("Yielding ")}
-        {blank(v->expr_of_value->string_of_expr)}
+        {blank(printExp(v->expr_of_value))}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -412,7 +430,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | Printing(v) =>
       <p className="now box printing">
         {React.string("Printing ")}
-        {blank(v->expr_of_value->string_of_expr)}
+        {blank(printExp(v->expr_of_value))}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -425,9 +443,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       <p className="now box calling">
         {React.string("Calling ")}
         {blank(
-          dummy_ann(
-            (App(expr_of_value(f), vs->List.map(expr_of_value)): expression),
-          )->string_of_expr,
+          printExp(
+            App(expr_of_value(f) |> dummyAnn, vs->List.map(v => v |> expr_of_value |> dummyAnn)),
+          ),
         )}
         <br />
         {React.string("in context ")}
@@ -437,9 +455,9 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
         {env}
       </p>
 
-    | Nexting(id, _status) =>
+    | Nexting({id, status}) =>
       <p className="now box calling">
-        {React.string("Advancing ")}
+        {React.string("Resuming ")}
         {blank(`@${id |> Int.toString}`)}
         <br />
         {React.string("in context ")}
@@ -450,10 +468,14 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
       </p>
 
     | Setting(x, v) =>
+      let x = {
+        let { ann: { sourceLocation, print }, it } = x
+        { ann: sourceLocation, it }
+      }
       <p className="now box replacing">
         {React.string("Rebinding a variable ")}
         <br />
-        {blank(Set(x, expr_of_value(v))->dummy_ann->((x): term => Exp(x))->string_of_term)}
+        {blank(Set(x, expr_of_value(v)->dummyAnn) |> printExp)}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -470,14 +492,12 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           AppPrm(
             VecSet,
             list{
-              expr_of_value(Vec(v_vec)),
-              expr_of_value(Con(Num(i |> Int.toFloat))),
-              expr_of_value(v_val),
+              expr_of_value(Vec(v_vec)) |> dummyAnn,
+              expr_of_value(Con(Num(i |> Int.toFloat))) |> dummyAnn,
+              expr_of_value(v_val) |> dummyAnn,
             },
           )
-          ->dummy_ann
-          ->((x): term => Exp(x))
-          ->string_of_term,
+          ->printExp,
         )}
         <br />
         {React.string("in context ")}
@@ -496,7 +516,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           <div className="now box returning">
             <p>
               {React.string("Returning ")}
-              {blank(v->string_of_value)}
+              {blank(v->displayValue)}
             </p>
           </div>
         show_state(stk, now)
@@ -508,7 +528,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
           <p className="now box called">
             {React.string(`Evaluating ${string_of_entrace(entrance)}`)}
             <br />
-            {blank(string_of_block(b))}
+            {blank(b.ann.print |> Print.toString)}
             <br />
             {React.string("in environment ")}
             {show_env(env)}
@@ -519,7 +539,7 @@ let render: (syntax_kind, state) => React.element = (sk, s) => {
     | Reducing(redex, stk) => {
         let (ctx, env, stk) = switch stk {
         | {topping: list{}, base: {ctx, env}} => (
-            blank(ctx->string_of_program_context),
+            ctx->renderProgramContext,
             env->show_env,
             <p> {React.string("(No stack frames)")} </p>,
           )
