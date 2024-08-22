@@ -100,7 +100,7 @@ section#stdout {
 }
 
 code.blank {
-    display: inline-block;
+    display: inline-flex;
     white-space: pre-wrap;
     color: black;
     background-color: white;
