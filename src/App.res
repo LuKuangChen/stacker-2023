@@ -53,6 +53,7 @@ type running_state = {
   now: React.element,
   nexts: list<React.element>,
   latestState: Runtime.state,
+  srcMap: SExpression.sourceLocation => option<SExpression.sourceLocation>
 }
 
 let pool_of_randomSeed = [
@@ -128,6 +129,11 @@ let remove_lang_line = (program: string) => {
   program
 }
 
+module SourceLocationCmp = Belt.Id.MakeComparable({
+  type t = SExpression.sourceLocation
+  let cmp = (a, b) => Pervasives.compare(a, b)
+})
+
 @react.component
 let make = () => {
   let (program, rawSetProgram) = React.useState(_ => "")
@@ -156,22 +162,24 @@ let make = () => {
     switch s {
     | None => raise(Impossible)
     | Some({prevs: _, now: _, nexts: list{}, latestState: Terminated(_)}) => raise(Impossible)
-    | Some({prevs, now, nexts: list{}, latestState: Continuing(latestState)}) => {
+    | Some({prevs, now, nexts: list{}, latestState: Continuing(latestState), srcMap}) => {
         let latestState = Runtime.transition(latestState)
         Some({
           prevs: list{now, ...prevs},
-          now: Render.render(actualRuntimeSyntax, latestState),
+          now: Render.render(actualRuntimeSyntax, latestState, srcMap),
           nexts: list{},
           latestState,
+          srcMap
         })
       }
 
-    | Some({prevs, now, nexts: list{e, ...nexts}, latestState}) =>
+    | Some({prevs, now, nexts: list{e, ...nexts}, latestState, srcMap}) =>
       Some({
         prevs: list{now, ...prevs},
         now: e,
         nexts,
         latestState,
+        srcMap
       })
     }
   }
@@ -183,12 +191,21 @@ let make = () => {
       }
 
     | program => {
+        open SExpression
         let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed, printTopLevel)
+        let srcMap: sourceLocation => option<sourceLocation> = {
+          let map = getPrint(program) -> Print.toSourceMap(module(SourceLocationCmp))
+          (srcLoc) => {
+            Map.get(map, srcLoc)
+            // failwith("todo")
+          }
+        }
         Some({
           prevs: list{},
           nexts: list{},
-          now: Render.render(actualRuntimeSyntax, s),
+          now: Render.render(actualRuntimeSyntax, s, srcMap),
           latestState: s,
+          srcMap
         })
       }
     }
@@ -228,10 +245,10 @@ let make = () => {
     setState(state =>
       switch state {
       | None => raise(Impossible)
-      | Some({prevs, now, nexts, latestState}) =>
+      | Some({prevs, now, nexts, latestState, srcMap}) =>
         switch prevs {
         | list{} => raise(Impossible)
-        | list{e, ...prevs} => Some({prevs, now: e, nexts: list{now, ...nexts}, latestState})
+        | list{e, ...prevs} => Some({prevs, now: e, nexts: list{now, ...nexts}, latestState, srcMap})
         }
       }
     )

@@ -98,26 +98,24 @@ let re_split = (s, re) => {
   switch Js.String.match_(re, s) {
   | None => [s]
   | Some(addresses) => {
-    let addresses = Array.map(addresses, Option.getExn)
-    // Js.Console.log2("Found addresses", addresses)
-    let result = [s]
-    Array.reduce(
-      addresses,
-      result,
-      (result, address) => {
+      let addresses = Array.map(addresses, Option.getExn)
+      // Js.Console.log2("Found addresses", addresses)
+      let result = [s]
+      Array.reduce(addresses, result, (result, address) => {
         // Js.Console.log3("current result", result, address)
-        result -> Array.mapWithIndex((i, resultPiece) => {
-          if (mod(i, 2) == 0) {
+        result
+        ->Array.mapWithIndex((i, resultPiece) => {
+          if mod(i, 2) == 0 {
             // Js.Console.log3("resultPiece", resultPiece, Js.String.split(address, resultPiece))
             let resultPiece = Js.String.split(address, resultPiece)
             array_interleave(resultPiece, address)
           } else {
             [resultPiece]
           }
-        }) -> Array.concatMany
-      }
-    )
-  }
+        })
+        ->Array.concatMany
+      })
+    }
   }
 }
 
@@ -171,7 +169,11 @@ let safe_f = (string_of, safe_string_of, src) => {
 }
 
 exception Impossible(string)
-let render: (Syntax.t, state) => React.element = (sk, s) => {
+let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React.element = (
+  sk,
+  s,
+  srcMap,
+) => {
   let printName = switch sk {
   | Lispy => SMoLPrinter.printName
   | JavaScript => JSPrinter.printName
@@ -233,6 +235,7 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     Js.Console.log(ctx)
     let {topping, base} = ctx
     let print = ref(getPrint(base.base))
+    // let originalElem = reactOfPrint(print.contents)
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
@@ -246,8 +249,8 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     )
     print := substituteById(print.contents, hole, Plain("◌"))
     // convert to React.element
-    // blankElem(reactOfPrint(print.contents))
-    blank(print.contents.it -> Print.toString)
+    // blankElem(<>{originalElem}{React.string("\n---\n")}{reactOfPrint(print.contents)}{React.string(SourceLocation.toString(hole))}</>)
+    blank(print.contents.it->Print.toString)
   }
 
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
@@ -255,6 +258,7 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     Js.Console.log(ctx)
     let {topping, base} = ctx
     let print = ref(getPrint(base))
+    // let originalElem = reactOfPrint(print.contents)
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
         print := substituteById(print.contents, id, printOfValue(v))
@@ -267,8 +271,8 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     )
     print := substituteById(print.contents, hole, Plain("◌"))
     // convert to React.element
-    // blankElem(reactOfPrint(print.contents))
-    blank(print.contents.it -> Print.toString)
+    // blankElem(<>{originalElem}{React.string("\n---\n")}{reactOfPrint(print.contents)}{React.string(SourceLocation.toString(hole))}</>)
+    blank(print.contents.it->Print.toString)
   }
 
   let show_envFrm = (frm: environmentFrame) => {
@@ -380,6 +384,11 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
         let id = id->Int.toString
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
+        let ann = if sk != Lispy {
+          srcMap(ann)->Option.getWithDefault(ann)
+        } else {
+          ann
+        }
         <li key id={`def-${id}`} className="fun box">
           {defblank(`@${id}`)}
           {React.string(isGen ? ", a generator function" : ", a function")}
