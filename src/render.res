@@ -112,7 +112,7 @@ let blankElem = e => {
 }
 
 let blank = s => {
-  let s = re_split(s, %re("/@[-0-9a-zA-Z]+/"))
+  let s = re_split(s, %re("/@[-_0-9a-zA-Z]+/"))
   <code className="blank">
     // {React.string(String.concat("<address>", s->List.fromArray))}
     {React.array(
@@ -288,11 +288,11 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     | list{frm, ...rest} => {
         let {id, content: _} = frm
         <li
-          id={`def-${id |> EnvironmentID.toString}`}
+          id={`def-${id |> EnvironmentID.toString |> printName}`}
           key={Int.toString(key)}
           className="env-frame box">
           <span>
-            {defblank(`@${id |> EnvironmentID.toString}`)}
+            {defblank(`@${id |> EnvironmentID.toString |> printName}`)}
             <br />
             {React.string("binds ")}
             {show_envFrm(frm)}
