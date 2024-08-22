@@ -10,7 +10,28 @@ open SMoL
 open SExpression
 open Runtime
 
-let substituteById = (p: Print.t<'id>, id: 'id, q: Print.t<'id>): Print.t<'id> => {
+let reactOfPrint = (p: SMoL.print<sourceLocation>): React.element => {
+  let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
+    let ann = switch ann {
+    | None => it => it
+    | Some(ann) =>
+      it => {
+        let className = SExpression.SourceLocation.toString(ann)
+        <span title={ann->SExpression.SourceLocation.toString} className> {it} </span>
+      }
+    }
+    switch it {
+    | Plain("") => <> </>
+    | Group(list{}) => <> </>
+    | Plain(s) => ann(React.string(s))
+    | Group(es) => ann(React.array(es->List.toArray->Array.map(reactOfAnnotatedPrint)))
+    }
+  }
+  Js.Console.log(p)
+  reactOfAnnotatedPrint(p)
+}
+
+let substituteById = (p: print<'id>, id: 'id, q: Print.t<'id>): print<'id> => {
   let rec sub = ({ann, it}: print<'id>): print<'id> => {
     if ann == Some(id) {
       {ann, it: q}
@@ -22,10 +43,7 @@ let substituteById = (p: Print.t<'id>, id: 'id, q: Print.t<'id>): Print.t<'id> =
       {ann, it}
     }
   }
-  switch p {
-  | Plain(s) => Plain(s)
-  | Group(es) => Group(List.map(es, sub))
-  }
+  sub(p)
 }
 
 module Syntax = {
@@ -87,6 +105,10 @@ let re_split = (s, re) => {
       })
     })
   }
+}
+
+let blankElem = e => {
+  <code className="blank"> {e} </code>
 }
 
 let blank = s => {
@@ -190,8 +212,10 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
   }
 
   let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
+    // Js.Console.log("body context")
+    // Js.Console.log(ctx)
     let {topping, base} = ctx
-    let print = ref(base.base.ann.print)
+    let print = ref(getPrint(base.base))
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
@@ -200,16 +224,19 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     })
     // plug hole in
     let hole = Option.getWithDefault(
-      topping -> List.head -> Option.map(holeOfFrame),
-      holeOfBodyBase(base.base.it)
+      topping->List.head->Option.map(holeOfFrame),
+      holeOfBodyBase(base.base.it),
     )
     print := substituteById(print.contents, hole, Plain("◌"))
     // convert to React.element
-    blank(Print.toString(print.contents))
+    blankElem(reactOfPrint(print.contents))
   }
+
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
+    // Js.Console.log("program context")
+    // Js.Console.log(ctx)
     let {topping, base} = ctx
-    let print = ref(base.ann.print)
+    let print = ref(getPrint(base))
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
         print := substituteById(print.contents, id, printOfValue(v))
@@ -217,12 +244,12 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     })
     // plug hole in
     let hole = Option.getWithDefault(
-      topping -> List.head -> Option.map(holeOfFrame),
-      holeOfProgramBase(base.it)
+      topping->List.head->Option.map(holeOfFrame),
+      holeOfProgramBase(base.it),
     )
     print := substituteById(print.contents, hole, Plain("◌"))
     // convert to React.element
-    blank(Print.toString(print.contents))
+    blankElem(reactOfPrint(print.contents))
   }
 
   let show_envFrm = (frm: environmentFrame) => {
