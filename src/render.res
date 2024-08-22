@@ -27,7 +27,7 @@ let reactOfPrint = (p: SMoL.print<sourceLocation>): React.element => {
     | Group(es) => ann(React.array(es->List.toArray->Array.map(reactOfAnnotatedPrint)))
     }
   }
-  Js.Console.log(p)
+  // Js.Console.log(p)
   reactOfAnnotatedPrint(p)
 }
 
@@ -92,18 +92,32 @@ let array_interleave = (arr, sep) => {
   }
 }
 
+// Js.Console.log(array_interleave(["a", "b", "c"], "-"))
+
 let re_split = (s, re) => {
-  // Js.Console.log3("Before split", s, Js.String.match_(re, s))
   switch Js.String.match_(re, s) {
   | None => [s]
-  | Some(fragments) =>
-    Array.reduce(fragments, [s], (ss, frag) => {
-      let frag = Option.getExn(frag)
-      Array.flatMap(ss, s => {
-        // Js.Console.log(`Spliting "${s}" by fragment "${frag}"`)
-        array_interleave(Js.String.split(frag, s), frag)
-      })
-    })
+  | Some(addresses) => {
+    let addresses = Array.map(addresses, Option.getExn)
+    // Js.Console.log2("Found addresses", addresses)
+    let result = [s]
+    Array.reduce(
+      addresses,
+      result,
+      (result, address) => {
+        // Js.Console.log3("current result", result, address)
+        result -> Array.mapWithIndex((i, resultPiece) => {
+          if (mod(i, 2) == 0) {
+            // Js.Console.log3("resultPiece", resultPiece, Js.String.split(address, resultPiece))
+            let resultPiece = Js.String.split(address, resultPiece)
+            array_interleave(resultPiece, address)
+          } else {
+            [resultPiece]
+          }
+        }) -> Array.concatMany
+      }
+    )
+  }
   }
 }
 
@@ -112,7 +126,9 @@ let blankElem = e => {
 }
 
 let blank = s => {
-  let s = re_split(s, %re("/@[-_0-9a-zA-Z]+/"))
+  // Js.Console.log2("before split", s)
+  let s = re_split(s, %re("/@[-_0-9a-zA-Z]+/g"))
+  // Js.Console.log2("after split", s)
   <code className="blank">
     // {React.string(String.concat("<address>", s->List.fromArray))}
     {React.array(
@@ -121,6 +137,7 @@ let blank = s => {
           React.string(s)
         } else {
           // must be an address
+          // let address = s
           let address = String.sub(s, 1, String.length(s) - 1)
           <span
             className={`ref ref-${address}`}
@@ -170,10 +187,10 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
   }
 
   let printOutput = switch sk {
-  | Lispy => SMoLPrinter.printOutput
-  | JavaScript => JSPrinter.printOutput
-  | Python => PYPrinter.printOutput
-  | Pseudo => PCPrinter.printOutput
+  | Lispy => SMoLPrinter.printOutput(~sep="\n")
+  | JavaScript => JSPrinter.printOutput(~sep="\n")
+  | Python => PYPrinter.printOutput(~sep="\n")
+  | Pseudo => PCPrinter.printOutput(~sep="\n")
   }
 
   let dummyAnn = it => {
@@ -212,8 +229,8 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
   }
 
   let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
-    // Js.Console.log("body context")
-    // Js.Console.log(ctx)
+    Js.Console.log("body context")
+    Js.Console.log(ctx)
     let {topping, base} = ctx
     let print = ref(getPrint(base.base))
     // plug values in
@@ -229,12 +246,13 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     )
     print := substituteById(print.contents, hole, Plain("◌"))
     // convert to React.element
-    blankElem(reactOfPrint(print.contents))
+    // blankElem(reactOfPrint(print.contents))
+    blank(print.contents.it -> Print.toString)
   }
 
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
-    // Js.Console.log("program context")
-    // Js.Console.log(ctx)
+    Js.Console.log("program context")
+    Js.Console.log(ctx)
     let {topping, base} = ctx
     let print = ref(getPrint(base))
     topping->List.forEach(f => {
@@ -249,7 +267,8 @@ let render: (Syntax.t, state) => React.element = (sk, s) => {
     )
     print := substituteById(print.contents, hole, Plain("◌"))
     // convert to React.element
-    blankElem(reactOfPrint(print.contents))
+    // blankElem(reactOfPrint(print.contents))
+    blank(print.contents.it -> Print.toString)
   }
 
   let show_envFrm = (frm: environmentFrame) => {

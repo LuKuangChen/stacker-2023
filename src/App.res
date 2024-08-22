@@ -532,7 +532,7 @@ let make = () => {
           } else {
             Lispy
           }}
-          program={if is_running {
+          program={if (is_running && actualRuntimeSyntax != Lispy) {
             translateProgram(actualRuntimeSyntax, printTopLevel, program)
           } else {
             program
