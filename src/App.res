@@ -53,7 +53,7 @@ type running_state = {
   now: React.element,
   nexts: list<React.element>,
   latestState: Runtime.state,
-  srcMap: SExpression.sourceLocation => option<SExpression.sourceLocation>
+  srcMap: kindedSourceLocation => option<SExpression.sourceLocation>
 }
 
 let pool_of_randomSeed = [
@@ -130,7 +130,7 @@ let remove_lang_line = (program: string) => {
 }
 
 module SourceLocationCmp = Belt.Id.MakeComparable({
-  type t = SExpression.sourceLocation
+  type t = kindedSourceLocation
   let cmp = (a, b) => Pervasives.compare(a, b)
 })
 
@@ -193,8 +193,8 @@ let make = () => {
     | program => {
         open SExpression
         let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed, printTopLevel)
-        let srcMap: sourceLocation => option<sourceLocation> = {
-          let map = getPrint(program) -> Print.toSourceMap(module(SourceLocationCmp))
+        let srcMap: kindedSourceLocation => option<sourceLocation> = {
+          let map = getProgramPrint(program) -> Print.toSourceMap(module(SourceLocationCmp))
           (srcLoc) => {
             Map.get(map, srcLoc)
             // failwith("todo")

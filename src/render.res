@@ -8,7 +8,7 @@ open Belt
 open List
 open SMoL
 open SExpression
-open Runtime
+open! Runtime
 
 let reactOfPrint = (p: SMoL.print<sourceLocation>): React.element => {
   let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
@@ -169,13 +169,9 @@ let safe_f = (string_of, safe_string_of, src) => {
 }
 
 exception Impossible(string)
-let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React.element = (
-  sk,
-  s,
-  srcMap,
-) => {
+let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => {
   let printName = switch sk {
-  | Lispy => SMoLPrinter.printName
+  | Syntax.Lispy => SMoLPrinter.printName
   | JavaScript => JSPrinter.printName
   | Python => PYPrinter.printName
   | Pseudo => PCPrinter.printName
@@ -207,7 +203,7 @@ let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React
   }
 
   let printExp = (e: expressionNode<sourceLocation>): string => {
-    printTerm(Exp(e))
+    printTerm(Exp(e |> dummyAnn))
   }
 
   let expr_of_value = (v: value): expressionNode<_> => {
@@ -230,16 +226,38 @@ let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React
     Plain(printVal(v))
   }
 
+  let getBodyBasePrint = (
+    {ann: {print, sourceLocation}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>,
+  ) => {
+    it: print,
+    ann: Some({
+      nodeKind: SMoL.Block,
+      sourceLocation,
+    }),
+  }
+
+  let getProgramBasePrint = (
+    {ann: {print, sourceLocation}}: annotated<Runtime.programBaseNode, SMoL.printAnn>,
+  ) => {
+    it: print,
+    ann: Some({
+      nodeKind: SMoL.Block,
+      sourceLocation,
+    }),
+  }
+
+  let exprLoc = sourceLocation => {nodeKind: Expression, sourceLocation}
+
   let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
     Js.Console.log("body context")
     Js.Console.log(ctx)
     let {topping, base} = ctx
-    let print = ref(getPrint(base.base))
+    let print = ref(getBodyBasePrint(base.base))
     // let originalElem = reactOfPrint(print.contents)
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
-        print := substituteById(print.contents, id, printOfValue(v))
+        print := substituteById(print.contents, exprLoc(id), printOfValue(v))
       })
     })
     // plug hole in
@@ -247,7 +265,7 @@ let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React
       topping->List.head->Option.map(holeOfFrame),
       holeOfBodyBase(base.base.it),
     )
-    print := substituteById(print.contents, hole, Plain("◌"))
+    print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
     // convert to React.element
     // blankElem(<>{originalElem}{React.string("\n---\n")}{reactOfPrint(print.contents)}{React.string(SourceLocation.toString(hole))}</>)
     blank(print.contents.it->Print.toString)
@@ -257,11 +275,11 @@ let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React
     Js.Console.log("program context")
     Js.Console.log(ctx)
     let {topping, base} = ctx
-    let print = ref(getPrint(base))
+    let print = ref(getProgramBasePrint(base))
     // let originalElem = reactOfPrint(print.contents)
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
-        print := substituteById(print.contents, id, printOfValue(v))
+        print := substituteById(print.contents, exprLoc(id), printOfValue(v))
       })
     })
     // plug hole in
@@ -269,7 +287,7 @@ let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React
       topping->List.head->Option.map(holeOfFrame),
       holeOfProgramBase(base.it),
     )
-    print := substituteById(print.contents, hole, Plain("◌"))
+    print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
     // convert to React.element
     // blankElem(<>{originalElem}{React.string("\n---\n")}{reactOfPrint(print.contents)}{React.string(SourceLocation.toString(hole))}</>)
     blank(print.contents.it->Print.toString)
@@ -385,9 +403,9 @@ let render: (Syntax.t, state, sourceLocation => option<sourceLocation>) => React
         // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
         // let id = id ++ name
         let ann = if sk != Lispy {
-          srcMap(ann)->Option.getWithDefault(ann)
+          srcMap(ann)->Option.getWithDefault(ann.sourceLocation)
         } else {
-          ann
+          ann.sourceLocation
         }
         <li key id={`def-${id}`} className="fun box">
           {defblank(`@${id}`)}

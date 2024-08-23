@@ -1,6 +1,6 @@
 open Belt
 open SExpression
-open SMoL
+open! SMoL
 open Primitive
 
 type primitive = Primitive.t
@@ -86,11 +86,11 @@ and function = {
   id: int,
   isGen: bool,
   name: ref<option<string>>,
-  sourceLocation: sourceLocation,
+  sourceLocation: kindedSourceLocation,
   xs: array<annotated<symbol, printAnn>>,
   body: block<printAnn>,
   env: environment,
-  print: print<sourceLocation>,
+  print: print<kindedSourceLocation>,
 }
 and generator = {
   id: int,
@@ -161,7 +161,7 @@ let valuesOfFrame = (f: contextFrame): list<(value, sourceLocation)> => {
   | App1(_, _) => list{}
   | App2(v, vs, _, _) => list{v, ...vs}
   | AppPrm1(_, vs, _, _) => vs
-  | Let1(xvs, _, _, _) => List.map(xvs, ((x, v)) => v)
+  | Let1(xvs, _, _, _) => List.map(xvs, ((_, v)) => v)
   | If1(_, _, _) => list{}
   | Cnd1(_, _, _, _) => list{}
   | Bgn1(_, _, _) => list{}
@@ -265,14 +265,20 @@ let outputletOfValue = (v: value): outputlet => {
   OVal(p(list{}, v))
 }
 
+let xsOfDef = (d: definition<printAnn>) => {
+  switch d.it {
+  | Var(x, _e) => list{x}
+  | Fun(x, _ys, _b) => list{x}
+  | GFun(x, _ys, _b) => list{x}
+  }
+}
+
 let xsOfTerms = (ts: list<term<printAnn>>) => {
   open Js.List
   ts
   |> map((. trm) =>
     switch (trm.it: termNode<printAnn>) {
-    | SMoL.Def(Var(x, _e)) => list{x}
-    | SMoL.Def(Fun(x, _ys, _b)) => list{x}
-    | SMoL.Def(GFun(x, _ys, _b)) => list{x}
+    | SMoL.Def(d) => xsOfDef(d)
     | SMoL.Exp(_e) => list{}
     }
   )
@@ -801,7 +807,10 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         id,
         isGen: false,
         name: ref(None),
-        sourceLocation: exp.ann.sourceLocation,
+        sourceLocation: {
+          nodeKind: Expression,
+          sourceLocation: exp.ann.sourceLocation
+        },
         xs: xs |> Js.List.toVector,
         body: b,
         env: current_env(stk),
@@ -816,7 +825,10 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         id,
         isGen: false,
         name: ref(None),
-        sourceLocation: exp.ann.sourceLocation,
+        sourceLocation: {
+          nodeKind: Expression,
+          sourceLocation: exp.ann.sourceLocation
+        },
         xs: xs |> Js.List.toVector,
         body: b,
         env: current_env(stk),
@@ -839,18 +851,8 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
     doEv(e_cnd, consCtx(If1(((), e_cnd.ann.sourceLocation), e_thn, e_els), stk))
   | Yield(e) => doEv(e, consCtx(Yield1((), e.ann.sourceLocation), stk))
   }
-and transitionLetrec = (ann, xes: list<bind<printAnn>>, b: block<printAnn>, stk: stack) => {
+and transitionLetrec = (_ann, _xes: list<bind<printAnn>>, _b: block<printAnn>, _stk: stack) => {
   raiseRuntimeError(AnyError("letrec is no longer supported"))
-  // let (ts, e) = b.it
-  // let ds = xes->List.map(({it: (x, e), ann}) => {
-  //   {
-  //     it: SMoL.Def(Var(x, e)),
-  //     ann,
-  //   }
-  // })
-  // let ts = list{...ds, ...ts}
-  // let b = { ann, it: (ts, e)}
-  // doBlk(b, None, stk)
 }
 and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
   switch xes {
@@ -870,8 +872,7 @@ and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
 }
 and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, stk: stack) => {
   switch b {
-  | BRet(it) =>
-    let exp = {it, ann}
+  | BRet(exp) =>
     doEv(
       exp,
       add_pile(
@@ -881,8 +882,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
     )
   | BCons(t, b) =>
     switch t.it {
-    | Exp(it) => {
-        let exp = {it, ann: t.ann}
+    | Exp(exp) => {
         Js.Console.log(exp.ann.sourceLocation)
         doEv(
           exp,
@@ -892,7 +892,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
           ),
         )
       }
-    | Def(Var(x, e0)) => {
+    | Def({it: Var(x, e0)}) => {
         let exp = e0
         doEv(
           exp,
@@ -905,7 +905,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
           ),
         )
       }
-    | Def(Fun(f, xs, fb)) => {
+    | Def({it: Fun(f, xs, fb)}) => {
         let exp = {it: Lam(xs, fb), ann: t.ann}
         doEv(
           exp,
@@ -918,7 +918,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
           ),
         )
       }
-    | Def(GFun(f, xs, fb)) => {
+    | Def({it: GFun(f, xs, fb)}) => {
         let exp = {it: GLam(xs, fb), ann: t.ann}
         doEv(
           exp,
@@ -937,7 +937,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
 and transitionPrg = (p, env: environment) => {
   switch p.it {
   | PNil => Terminated(Tm)
-  | PCons({ann: _, it: Def(Var(x, e0))}, pRest) =>
+  | PCons({it: Def({it: Var(x, e0)})}, pRest) =>
     let exp = e0
     doEv(
       exp,
@@ -946,7 +946,7 @@ and transitionPrg = (p, env: environment) => {
         ctx: new_pile({ann: p.ann, it: PDef(x, ((), exp.ann.sourceLocation), pRest)}),
       }),
     )
-  | PCons({ann, it: Def(Fun(f, xs, b))}, pRest) =>
+  | PCons({ann, it: Def({it: Fun(f, xs, b)})}, pRest) =>
     let exp = {it: Lam(xs, b), ann}
     doEv(
       exp,
@@ -955,7 +955,7 @@ and transitionPrg = (p, env: environment) => {
         ctx: new_pile({ann: p.ann, it: PDef(f, ((), exp.ann.sourceLocation), pRest)}),
       }),
     )
-  | PCons({ann, it: Def(GFun(f, xs, b))}, pRest) =>
+  | PCons({ann, it: Def({it: GFun(f, xs, b)})}, pRest) =>
     let exp = {it: GLam(xs, b), ann}
     doEv(
       exp,
@@ -963,20 +963,19 @@ and transitionPrg = (p, env: environment) => {
         env,
         ctx: new_pile({
           ann: p.ann,
-          it: PDef(f, ((), exp.ann.sourceLocation), pRest)
+          it: PDef(f, ((), exp.ann.sourceLocation), pRest),
         }),
       }),
     )
-  | PCons({ann, it: Exp(e0)}, pRest) =>
-    let exp = {it: e0, ann}
+  | PCons({it: Exp(exp)}, pRest) =>
     doEv(
       exp,
       new_pile({
         env,
         ctx: new_pile({
           ann: p.ann,
-          it: PExp(((), exp.ann.sourceLocation), pRest)
-        })
+          it: PExp(((), exp.ann.sourceLocation), pRest),
+        }),
       }),
     )
   }
