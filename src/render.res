@@ -10,14 +10,18 @@ open SMoL
 open SExpression
 open! Runtime
 
-let reactOfPrint = (p: SMoL.print<sourceLocation>): React.element => {
+let stringOfKindedSourceLocation = ({ nodeKind, sourceLocation}) => {
+  `${NodeKind.toString(nodeKind)}-${SourceLocation.toString(sourceLocation)}`
+}
+
+let reactOfPrint = (p: SMoL.print<kindedSourceLocation>): React.element => {
   let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
     let ann = switch ann {
     | None => it => it
     | Some(ann) =>
       it => {
-        let className = SExpression.SourceLocation.toString(ann)
-        <span title={ann->SExpression.SourceLocation.toString} className> {it} </span>
+        let className = stringOfKindedSourceLocation(ann)
+        <span title={ann->stringOfKindedSourceLocation} className> {it} </span>
       }
     }
     switch it {
