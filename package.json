@@ -14,6 +14,7 @@
     "webpack": "npx webpack --mode production",
     "publish": "rm -rf ./docs && cp -r ./dist ./docs",
     "publish-as-testing": "rm -rf ./docs/testing && cp -r ./dist ./docs/testing",
+    "publish-on-tutor-website": "rm -rf ../smol-tutor/docs/stacker && cp -r ./dist ../smol-tutor/docs/stacker",
     "localhost": "python -m http.server --directory dist"
   },
   "keywords": [
