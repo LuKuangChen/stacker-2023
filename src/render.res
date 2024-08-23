@@ -253,11 +253,8 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
   let exprLoc = sourceLocation => {nodeKind: Expression, sourceLocation}
 
   let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
-    Js.Console.log("body context")
-    Js.Console.log(ctx)
     let {topping, base} = ctx
     let print = ref(getBodyBasePrint(base.base))
-    // let originalElem = reactOfPrint(print.contents)
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
@@ -270,17 +267,12 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
       holeOfBodyBase(base.base.it),
     )
     print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
-    // convert to React.element
-    // blankElem(<>{originalElem}{React.string("\n---\n")}{reactOfPrint(print.contents)}{React.string(SourceLocation.toString(hole))}</>)
     blank(print.contents.it->Print.toString)
   }
 
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
-    Js.Console.log("program context")
-    Js.Console.log(ctx)
     let {topping, base} = ctx
     let print = ref(getProgramBasePrint(base))
-    // let originalElem = reactOfPrint(print.contents)
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
         print := substituteById(print.contents, exprLoc(id), printOfValue(v))
@@ -293,7 +285,6 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
     )
     print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
     // convert to React.element
-    // blankElem(<>{originalElem}{React.string("\n---\n")}{reactOfPrint(print.contents)}{React.string(SourceLocation.toString(hole))}</>)
     blank(print.contents.it->Print.toString)
   }
 
@@ -404,10 +395,8 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
       }
     | VFun({id, isGen, sourceLocation: ann, print, env}) => {
         let id = id->Int.toString
-        // let name = name.contents->Option.map(s => ":" ++ s)->Option.getWithDefault("")
-        // let id = id ++ name
         let ann = if sk != Lispy {
-          srcMap(ann)->Option.getWithDefault(ann.sourceLocation)
+          srcMap(ann) -> Option.getWithDefault(ann.sourceLocation)
         } else {
           ann.sourceLocation
         }

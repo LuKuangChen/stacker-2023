@@ -456,6 +456,22 @@ type state =
   | Terminated(terminated_state)
   | Continuing(continuing_state)
 
+let makeFun = (isGen, xs, b, env, sourceLocation, print) => {
+  let id = newHavId()
+  let v: value = VFun({
+    id,
+    isGen,
+    xs,
+    body: b,
+    env,
+    name: ref(None),
+    sourceLocation,
+    print,
+  })
+  allHavs := list{v, ...allHavs.contents}
+  v
+}
+
 let asNum = (v: value) =>
   switch v {
   | Con(Num(v)) => v
@@ -489,7 +505,7 @@ and asVec = v =>
 and asPair = v =>
   switch v {
   | Vec(v) => {
-      let {id, contents: es} = v
+      let {contents: es} = v
       if Array.length(es) != 2 {
         raise(RuntimeError(ExpectButGiven("pair", Vec(v))))
       }
@@ -802,39 +818,31 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
     let exp = e
     doEv(exp, consCtx(Set1(x, ((), exp.ann.sourceLocation)), stk))
   | Lam(xs, b) => {
-      let id = newHavId()
-      let v: value = VFun({
-        id,
-        isGen: false,
-        name: ref(None),
-        sourceLocation: {
+      let v = makeFun(
+        false,
+        xs |> Js.List.toVector,
+        b,
+        current_env(stk),
+        {
           nodeKind: Expression,
-          sourceLocation: exp.ann.sourceLocation
+          sourceLocation: exp.ann.sourceLocation,
         },
-        xs: xs |> Js.List.toVector,
-        body: b,
-        env: current_env(stk),
-        print: getPrint(exp),
-      })
-      allHavs := list{v, ...allHavs.contents}
+        getPrint(exp),
+      )
       return(v, stk)
     }
   | GLam(xs, b) => {
-      let id = newHavId()
-      let v: value = VFun({
-        id,
-        isGen: false,
-        name: ref(None),
-        sourceLocation: {
+      let v = makeFun(
+        true,
+        xs |> Js.List.toVector,
+        b,
+        current_env(stk),
+        {
           nodeKind: Expression,
-          sourceLocation: exp.ann.sourceLocation
+          sourceLocation: exp.ann.sourceLocation,
         },
-        xs: xs |> Js.List.toVector,
-        body: b,
-        env: current_env(stk),
-        print: getPrint(exp),
-      })
-      allHavs := list{v, ...allHavs.contents}
+        getPrint(exp),
+      )
       return(v, stk)
     }
   | Let(xes, b) => transitionLet(list{}, xes, b, stk)
@@ -892,8 +900,9 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
           ),
         )
       }
-    | Def({it: Var(x, e0)}) => {
-        let exp = e0
+    | Def(d) =>
+      switch d.it {
+      | Var(x, exp) =>
         doEv(
           exp,
           add_pile(
@@ -904,80 +913,93 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
             stk,
           ),
         )
-      }
-    | Def({it: Fun(f, xs, fb)}) => {
-        let exp = {it: Lam(xs, fb), ann: t.ann}
-        doEv(
-          exp,
-          add_pile(
+      | Fun(f, xs, fb) => {
+          let v = makeFun(
+            false,
+            xs->List.toArray,
+            fb,
+            env,
             {
-              ctx: new_pile({isGen, base: {ann, it: BdyDef(f, ((), exp.ann.sourceLocation), b)}}),
-              env,
+              nodeKind: Definition,
+              sourceLocation: ann.sourceLocation,
             },
-            stk,
-          ),
-        )
-      }
-    | Def({it: GFun(f, xs, fb)}) => {
-        let exp = {it: GLam(xs, fb), ann: t.ann}
-        doEv(
-          exp,
-          add_pile(
+            getDefinitionPrint(d),
+          )
+          doSet(env, f, v)
+          transitionBlock(b, isGen, env, stk)
+        }
+      | GFun(f, xs, fb) => {
+          let v = makeFun(
+            false,
+            xs->List.toArray,
+            fb,
+            env,
             {
-              ctx: new_pile({isGen, base: {ann, it: BdyDef(f, ((), exp.ann.sourceLocation), b)}}),
-              env,
+              nodeKind: Definition,
+              sourceLocation: ann.sourceLocation,
             },
-            stk,
-          ),
-        )
+            getDefinitionPrint(d),
+          )
+          doSet(env, f, v)
+          transitionBlock(b, isGen, env, stk)
+        }
       }
     }
   }
 }
-and transitionPrg = (p, env: environment) => {
-  switch p.it {
+and transitionPrg = ({ann, it: p}, env: environment) => {
+  switch p {
   | PNil => Terminated(Tm)
-  | PCons({it: Def({it: Var(x, e0)})}, pRest) =>
-    let exp = e0
-    doEv(
-      exp,
-      new_pile({
-        env,
-        ctx: new_pile({ann: p.ann, it: PDef(x, ((), exp.ann.sourceLocation), pRest)}),
-      }),
-    )
-  | PCons({ann, it: Def({it: Fun(f, xs, b)})}, pRest) =>
-    let exp = {it: Lam(xs, b), ann}
-    doEv(
-      exp,
-      new_pile({
-        env,
-        ctx: new_pile({ann: p.ann, it: PDef(f, ((), exp.ann.sourceLocation), pRest)}),
-      }),
-    )
-  | PCons({ann, it: Def({it: GFun(f, xs, b)})}, pRest) =>
-    let exp = {it: GLam(xs, b), ann}
-    doEv(
-      exp,
-      new_pile({
-        env,
-        ctx: new_pile({
-          ann: p.ann,
-          it: PDef(f, ((), exp.ann.sourceLocation), pRest),
-        }),
-      }),
-    )
-  | PCons({it: Exp(exp)}, pRest) =>
-    doEv(
-      exp,
-      new_pile({
-        env,
-        ctx: new_pile({
-          ann: p.ann,
-          it: PExp(((), exp.ann.sourceLocation), pRest),
-        }),
-      }),
-    )
+  | PCons(t, p) =>
+    switch t.it {
+    | Exp(exp) => {
+        // Js.Console.log(exp.ann.sourceLocation)
+        doEv(exp, new_pile({ctx: new_pile({ann, it: PExp(((), exp.ann.sourceLocation), p)}), env}))
+      }
+    | Def(d) =>
+      switch d.it {
+      | Var(x, exp) =>
+        doEv(
+          exp,
+          new_pile(
+            {
+              ctx: new_pile({ann, it: PDef(x, ((), exp.ann.sourceLocation), p)}),
+              env,
+            },
+          ),
+        )
+      | Fun(f, xs, fb) => {
+          let v = makeFun(
+            false,
+            xs->List.toArray,
+            fb,
+            env,
+            {
+              nodeKind: Definition,
+              sourceLocation: d.ann.sourceLocation,
+            },
+            getDefinitionPrint(d),
+          )
+          doSet(env, f, v)
+          transitionPrg(p, env)
+        }
+      | GFun(f, xs, fb) => {
+          let v = makeFun(
+            false,
+            xs->List.toArray,
+            fb,
+            env,
+            {
+              nodeKind: Definition,
+              sourceLocation: d.ann.sourceLocation,
+            },
+            getDefinitionPrint(d),
+          )
+          doSet(env, f, v)
+          transitionPrg(p, env)
+        }
+      }
+    }
   }
 }
 and transitionCnd = (ebs, ob, stk: stack) => {

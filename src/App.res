@@ -543,6 +543,7 @@ let make = () => {
         style={{
           fontSize: FontSize.toString(editorFontSize),
         }}>
+        // <pre>{reactOfPrint(translateProgramFull(actualRuntimeSyntax, printTopLevel, program) |> getProgramPrint)}</pre>
         <CodeEditor
           syntax={if is_running {
             actualRuntimeSyntax
