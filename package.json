@@ -1,6 +1,5 @@
 {
   "name": "stacker-2023",
-  "version": "0.0.4",
   "private": true,
   "scripts": {
     "build-smol-parser": "npx lezer-generator src/codemirror-lang_smol/smol.grammar > src/codemirror-lang_smol/parser.js",

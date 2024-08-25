@@ -121,7 +121,7 @@ let parseSMoL = (program: string) => {
 
 let remove_lang_line = (program: string) => {
   // Js.Console.log2("Before replacement", program)
-  let re = %re("/^#lang[^\n]*[\n]*/g")
+  let re = %re("/^[\s]*#lang[^\n]*[\n]*/g")
   let program = Js.String.replaceByRe(re, "", program)
 
   // Js.Console.log2("After replacement", program)
@@ -131,12 +131,11 @@ let remove_lang_line = (program: string) => {
 @react.component
 let make = () => {
   let (program, rawSetProgram) = React.useState(_ => "")
+  // let program = remove_lang_line(program)
   let (parseFeedback, setParseFeedback) = React.useState(_ => "")
   let setProgram = (setter: string => string) => {
     setParseFeedback(_ => "")
-    rawSetProgram(v => {
-      remove_lang_line(setter(v))
-    })
+    rawSetProgram((v) => remove_lang_line(setter(v)))
   }
   let (nNext, setNNext) = React.useState(_ => 0)
   let (runtimeSyntax, setRuntimeSyntax) = React.useState(_ => {
@@ -206,7 +205,6 @@ let make = () => {
   }
   let (editorFontSize, setEditorFontSize) = React.useState(_ => FontSize.default)
   let (state, setState) = React.useState(_ => {
-    let programAtURL = remove_lang_line(programAtURL)
     setProgram(_ => programAtURL)
     if nNextAtURL < 0 {
       None
@@ -271,7 +269,7 @@ let make = () => {
   }
   let onKeyDown = evt => {
     let key = ReactEvent.Keyboard.key(evt)
-    Js.log(`Key pressed (${key})`)
+    // Js.log(`Key pressed (${key})`)
     if key == "j" && prevable {
       onPrevClick(evt)
     } else if key == "k" && nextable {
@@ -374,19 +372,19 @@ let make = () => {
           <li>
             <button
               disabled={is_running}
-              value="Counter1"
+              value="Counter"
               onClick={_evt => setProgram(_ => Programs.program_ctr1)}>
-              {React.string("Counter1")}
+              {React.string("Counter")}
             </button>
           </li>
-          <li>
-            <button
-              disabled={is_running}
-              value="Counter2"
-              onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
-              {React.string("Counter2")}
-            </button>
-          </li>
+          // <li>
+          //   <button
+          //     disabled={is_running}
+          //     value="Counter2"
+          //     onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
+          //     {React.string("Counter2")}
+          //   </button>
+          // </li>
           <li>
             <button
               disabled={is_running}
