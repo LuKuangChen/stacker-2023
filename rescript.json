@@ -8,7 +8,7 @@
   ],
   "package-specs": [
     {
-      "module": "es6",
+      "module": "esmodule",
       "in-source": true
     }
   ],
@@ -18,8 +18,12 @@
     "mode": "classic"
   },
   "bs-dependencies": [
+    "@rescript/core",
     "@rescript/react",
     "@brownplt/s-expression",
     "@brownplt/smol-translator"
+  ],
+  "bsc-flags": [
+    "-open RescriptCore"
   ]
 }

@@ -1,4 +1,3 @@
-open Belt
 open SMoL
 open Render
 
@@ -68,7 +67,7 @@ let pool_of_randomSeed = [
 ]
 let new_randomSeed = () => {
   let index = Js.Math.random_int(0, 1 + Array.length(pool_of_randomSeed))
-  pool_of_randomSeed->Array.get(index)->Option.getWithDefault(Js.Math.random()->Float.toString)
+  pool_of_randomSeed->Array.get(index)->Option.getOr(Js.Math.random()->Float.toString)
 }
 
 type state = {
@@ -129,11 +128,6 @@ let remove_lang_line = (program: string) => {
   program
 }
 
-module SourceLocationCmp = Belt.Id.MakeComparable({
-  type t = kindedSourceLocation
-  let cmp = (a, b) => Pervasives.compare(a, b)
-})
-
 @react.component
 let make = () => {
   let (program, rawSetProgram) = React.useState(_ => "")
@@ -149,7 +143,7 @@ let make = () => {
     Syntax.fromString(syntaxAtURL)
   })
   let (previewSyntax: option<Render.Syntax.t>, setPreviewSyntax) = React.useState(_ => None)
-  let actualRuntimeSyntax = Option.orElse(runtimeSyntax, previewSyntax)->Option.getWithDefault(Render.Syntax.Lispy)
+  let actualRuntimeSyntax = Option.orElse(runtimeSyntax, previewSyntax)->Option.getOr(Render.Syntax.Lispy)
   let (printTopLevel, setPrintTopLevel) = React.useState(_ => printTopLevelAtURL)
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
     if randomSeedAtURL == "" {
@@ -184,7 +178,7 @@ let make = () => {
     }
   }
   let loadProgram = program => {
-    switch translateProgramFull(Option.getWithDefault(runtimeSyntax, Lispy), printTopLevel, program) {
+    switch translateProgramFull(Option.getOr(runtimeSyntax, Lispy), printTopLevel, program) {
     | exception SMoLTranslateError(err) => {
         setParseFeedback(_ => TranslateError.toString(err))
         None
@@ -194,7 +188,7 @@ let make = () => {
         open SExpression
         let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed, printTopLevel)
         let srcMap: kindedSourceLocation => option<sourceLocation> = {
-          let map = getProgramPrint(program) -> Print.toSourceMap(module(SourceLocationCmp))
+          let map = getProgramPrint(program) -> Print.toSourceMap
           (srcLoc) => {
             Map.get(map, srcLoc)
             // failwith("todo")
@@ -263,7 +257,7 @@ let make = () => {
   | Some({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
   | Some({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
-  let onShare = (readOnlyMode, _evt) => {
+  let onShare = (readOnlyMode) => _ => {
     openPopUp(
       make_url(
         actualRuntimeSyntax->Syntax.toString,
@@ -429,7 +423,7 @@ let make = () => {
         {React.string("Show translation at right ➡️:")}
         {React.array(
           Syntax.all
-          ->Array.keep(s => s != Lispy)
+          ->Array.filter(s => s != Lispy)
           ->Array.map(s => {
             <label>
               <input
@@ -526,7 +520,7 @@ let make = () => {
         setEditorWidth(_ => Some(x))
       }
     }}
-    onMouseUp={event => {
+    onMouseUp={_ => {
       setDragging(_ => false)
     }}>
     <section
@@ -562,7 +556,7 @@ let make = () => {
     </section>
     <div
       id="split"
-      onMouseDown={event => {
+      onMouseDown={_ => {
         setDragging(_ => true)
       }}
     />

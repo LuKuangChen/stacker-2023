@@ -1,13 +1,12 @@
-open Belt
 open SExpression
 open! SMoL
 open Primitive
 
 type primitive = Primitive.t
 
-@module("./random") external make_random: string => array<unit => float> = "make_random"
+@module("./random") external make_random: string => unit => float = "make_random"
 
-let randomIntOfRandom = (. random) => {
+let randomIntOfRandom = (random) => {
   let f = (start, end) => {
     let delta = end - start
     let offset = Js.Math.round(random() *. Int.toFloat(delta))->Int.fromFloat
@@ -19,8 +18,7 @@ let randomIntOfRandom = (. random) => {
 let makeRandomInt = seed => {
   // If I don't wrap the function in an array, Rescript will automatically collapse
   // the two arrows and eta-expand the first function.
-  let random: unit => float = Array.getExn(make_random(seed), 0)
-  randomIntOfRandom(. random)
+  randomIntOfRandom(make_random(seed))
 }
 
 let randomInt = ref(makeRandomInt(Js.Math.random()->Float.toString))
@@ -174,9 +172,9 @@ let printCon = constant => SMoLPrinter.printOutput(list{SMoL.OVal(Con(constant))
 let printValue = (v: value) => {
   switch v {
   | Con(constant) => printCon(constant)
-  | VFun({id}) => `@${id |> Int.toString}`
-  | VGen({id}) => `@${id |> Int.toString}`
-  | Vec({id}) => `@${id |> Int.toString}`
+  | VFun({id}) => `@${Int.toString(id)}`
+  | VGen({id}) => `@${Int.toString(id)}`
+  | Vec({id}) => `@${Int.toString(id)}`
   }
 }
 
@@ -204,8 +202,8 @@ module RTArity = {
     | Exactly(int)
   let toString = arity => {
     switch arity {
-    | AtLeast(i) => `${i |> Int.toString} or more`
-    | Exactly(i) => `${i |> Int.toString}`
+    | AtLeast(i) => `${Int.toString(i)} or more`
+    | Exactly(i) => `${Int.toString(i)}`
     }
   }
   let minimalArity = arity => {
@@ -230,26 +228,20 @@ exception RuntimeError(runtimeError)
 
 let raiseRuntimeError = e => raise(RuntimeError(e))
 
-module IntHash = Belt.Id.MakeHashable({
-  type t = int
-  let hash = a => a
-  let eq = (a, b) => a == b
-})
-
 // This is the pretty presentation of values
 let outputletOfValue = (v: value): outputlet => {
-  let hMap = Belt.HashMap.make(~hintSize=10, ~id=module(IntHash))
-  let rec p = (visited: list<int>, v: value): val => {
+  let hMap = Map.make()
+  let rec p = (visited: list<int>) => (v: value): val => {
     switch v {
     | Con(constant) => Con(constant)
     | VFun(_) => raise(RuntimeError(AnyError("Can't print functions")))
     | VGen(_) => raise(RuntimeError(AnyError("Can't print generators")))
     | Vec({id, contents: es}) =>
       if List.has(visited, id, (a, b) => a == b) {
-        let r = switch HashMap.get(hMap, id) {
+        let r = switch Map.get(hMap, id) {
         | None => {
-            let r = HashMap.size(hMap)
-            HashMap.set(hMap, id, r)
+            let r = Map.size(hMap)
+            Map.set(hMap, id, r)
             r
           }
         | Some(r) => r
@@ -257,12 +249,12 @@ let outputletOfValue = (v: value): outputlet => {
         Ref(r)
       } else {
         let p = p(list{id, ...visited})
-        let es = Array.map(es, p) |> List.fromArray
-        Struct(HashMap.get(hMap, id), Vec(es))
+        let es = List.fromArray(Array.map(es, p))
+        Struct(Map.get(hMap, id), Vec(es))
       }
     }
   }
-  OVal(p(list{}, v))
+  OVal(p(list{})(v))
 }
 
 let xsOfDef = (d: definition<printAnn>) => {
@@ -275,15 +267,13 @@ let xsOfDef = (d: definition<printAnn>) => {
 
 let xsOfTerms = (ts: list<term<printAnn>>) => {
   open Js.List
-  ts
-  |> map((. trm) =>
-    switch (trm.it: termNode<printAnn>) {
-    | SMoL.Def(d) => xsOfDef(d)
-    | SMoL.Exp(_e) => list{}
-    }
-  )
-  |> flatten
-  |> toVector
+
+  toVector(flatten(map(trm =>
+        switch (trm.it: termNode<printAnn>) {
+        | SMoL.Def(d) => xsOfDef(d)
+        | SMoL.Exp(_e) => list{}
+        }
+      , ts)))
 }
 
 // let extend_block = (b: block<printAnn>, e: expression<printAnn>): blockNode<printAnn> => {
@@ -328,8 +318,8 @@ let has_duplicates = (xs: list<symbol>) => {
 }
 
 let check_duplicate = (xs, env_id) => {
-  switch has_duplicates(xs |> List.fromArray) {
-  | Some(x) => raise(RuntimeError(RedefinedIdentifier(x, env_id |> EnvironmentID.toString)))
+  switch has_duplicates(List.fromArray(xs)) {
+  | Some(x) => raise(RuntimeError(RedefinedIdentifier(x, EnvironmentID.toString(env_id))))
   | None => ()
   }
 }
@@ -339,7 +329,7 @@ let makeTopLevel = (env, xs): environment => {
   let id = EnvironmentID.TopLevel
   let frm = {
     id,
-    content: xs |> Js.Array.map(x => (x, ref(None))),
+    content: Js.Array.map(x => (x, ref(None)), xs),
   }
   let env = list{frm, ...env}
   allEnvs := list{env, ...allEnvs.contents}
@@ -354,7 +344,7 @@ let extend = (env, xs): environment => {
   let id = EnvironmentID.Extended(newEnvId())
   let frm = {
     id,
-    content: xs |> Js.Array.map(x => (x, ref(None))),
+    content: Js.Array.map(x => (x, ref(None)), xs),
   }
   let env = list{frm, ...env}
   allEnvs := list{env, ...allEnvs.contents}
@@ -376,10 +366,11 @@ let rec lookup = (env: environment, x) => {
   | list{frm, ...env} =>
     let {content} = frm
     // Js.log(`Looking up ${x} in ${id}`)
-    content
-    |> Js.Array.find(((y, _v)) => x == y.it)
-    |> Js.Option.map((. (_x, v)) => v)
-    |> ifNone(() => lookup(env, x))
+
+    ifNone(
+      () => lookup(env, x),
+      Js.Option.map(((_x, v)) => v, Js.Array.find(((y, _v)) => x == y.it, content)),
+    )
   }
 }
 
@@ -517,15 +508,15 @@ and asPair = v =>
 let deltaNum1 = (f, v, vs): value => {
   open Js.List
   let v = asNum(v)
-  and vs = map((. v) => asNum(v), vs)
+  and vs = map(v => asNum(v), vs)
   Con(Num(Js.List.foldLeft(f, v, vs)))
 }
 let deltaNum2 = (f, v1, v2, vs): value => {
   open Js.List
   let v1 = asNum(v1)
   and v2 = asNum(v2)
-  and vs = map((. v) => asNum(v), vs)
-  Con(Num(Js.List.foldLeft(f, f(. v1, v2), vs)))
+  and vs = map(v => asNum(v), vs)
+  Con(Num(Js.List.foldLeft(f, f(v1, v2), vs)))
 }
 
 type acc = {
@@ -535,7 +526,7 @@ type acc = {
 let deltaCmp = (cmp, v, vs): value => {
   open Js.List
   let v = asNum(v)
-  and vs = map((. v) => asNum(v), vs)
+  and vs = map(v => asNum(v), vs)
   let rec loop = (v1, vs) => {
     switch vs {
     | list{} => true
@@ -547,6 +538,37 @@ let deltaCmp = (cmp, v, vs): value => {
 
 let eqv2 = (u, v) => {
   u == v
+}
+
+let equal2 = (u: value, v: value) => {
+  // Core.Set is reliable on strings but not on tuples
+  let visited = Set.make()
+  let fmt = (i, j) => `${Int.toString(i)}|${Int.toString(j)}`
+  let rec f = (u, v) => {
+    switch (u, v) {
+    | (Vec(u), Vec(v)) => {
+      if u.id === v.id || Set.has(visited, fmt(u.id, v.id)) {
+        true
+      } else {
+        Set.add(visited, fmt(u.id, v.id))
+        let u = u.contents;
+        let v = v.contents;
+        if Array.length(u) != Array.length(v) {
+          false
+        } else {
+          Array.everyWithIndex(
+            u,
+            (ue, i) => {
+              let ve = Option.getExn(v[i])
+              f(ue, ve)
+            })
+        }
+      }
+    }
+    | _ => u == v
+    }
+  }
+  f(u, v)
 }
 
 let deltaEq = (cmp, v, vs): value => {
@@ -583,7 +605,7 @@ let arityOf = p =>
 exception Impossible(string)
 // The current function call finished. We are returning
 // a value.
-let rec return = (v: value, s: stack): state => {
+let rec return = (v: value) => (s: stack): state => {
   switch s {
   | {topping: list{}, base: {ctx, env}} => continueTopLevel(v, ctx, env)
   | {topping: list{{ctx, env}, ...topping}, base} => continueBody(v, ctx, env, {topping, base})
@@ -599,7 +621,7 @@ and yield = (v: value, s: stack): state => {
       switch r.contents {
       | Running => {
           r := Suspended({topping: ctx.topping, base: ctx.base.base}, env)
-          return(v, {topping, base})
+          return(v)({topping, base})
         }
       | _ => raise(RuntimeError(AnyError("Internal error, please contact the developer")))
       }
@@ -614,10 +636,10 @@ and make_vector = vs => {
 }
 and delta = (p, vs) =>
   switch (p, vs) {
-  | (Arith(Add), list{v, ...vs}) => return(deltaNum1((. a, b) => a +. b, v, vs))
-  | (Arith(Sub), list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => a -. b, v1, v2, vs))
-  | (Arith(Mul), list{v, ...vs}) => return(deltaNum1((. a, b) => a *. b, v, vs))
-  | (Arith(Div), list{v1, v2, ...vs}) => return(deltaNum2((. a, b) => {
+  | (Arith(Add), list{v, ...vs}) => return(deltaNum1((a, b) => a +. b, v, vs))
+  | (Arith(Sub), list{v1, v2, ...vs}) => return(deltaNum2((a, b) => a -. b, v1, v2, vs))
+  | (Arith(Mul), list{v, ...vs}) => return(deltaNum1((a, b) => a *. b, v, vs))
+  | (Arith(Div), list{v1, v2, ...vs}) => return(deltaNum2((a, b) => {
         if b == 0. {
           raise(RuntimeError(DivisionByZero))
         } else {
@@ -626,7 +648,7 @@ and delta = (p, vs) =>
       }, v1, v2, vs))
   | (Cmp(Lt), list{v, ...vs}) => return(deltaCmp((a, b) => a < b, v, vs))
   | (Cmp(Eq), list{v, ...vs}) => return(deltaEq(eqv2, v, vs))
-  // | (Cmp(Eq), list{v, ...vs}) => return(deltaCmp((a, b) => a == b, v, vs))
+  | (Cmp(Equal), list{v, ...vs}) => return(deltaEq(equal2, v, vs))
   | (Cmp(Gt), list{v, ...vs}) => return(deltaCmp((a, b) => a > b, v, vs))
   | (Cmp(Le), list{v, ...vs}) => return(deltaCmp((a, b) => a <= b, v, vs))
   | (Cmp(Ge), list{v, ...vs}) => return(deltaCmp((a, b) => a >= b, v, vs))
@@ -721,16 +743,17 @@ and delta = (p, vs) =>
     }
   }
 and doVecSet = ({contents: vs}, v_ind, v_val, stk: stack) => {
-  if vs[v_ind] = v_val {
+  if 0 <= v_ind && v_ind < Array.length(vs) {
+    vs[v_ind] = v_val
     // The update is successful.
-    return(Con(Uni), stk)
+    return(Con(Uni))(stk)
   } else {
     raise(RuntimeError(OutOfBound(Array.length(vs), v_ind)))
   }
 }
 and setting = (x, v, stk: stack) => {
   doSet(current_env(stk), x, v)
-  return(Con(Uni), stk)
+  return(Con(Uni))(stk)
 }
 and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: environment) => {
   let {topping, base} = ctx
@@ -810,17 +833,17 @@ and handleCtxFrame = (v: value, ctxFrame, stk: stack) => {
 }
 and doEv = (exp: expression<printAnn>, stk: stack) =>
   switch exp.it {
-  | Con(c) => return(Con(c), stk)
+  | Con(c) => return(Con(c))(stk)
   | Ref(x) =>
     let val = doRef(current_env(stk), x)
-    return(val, stk)
+    return(val)(stk)
   | Set(x, e) =>
     let exp = e
     doEv(exp, consCtx(Set1(x, ((), exp.ann.sourceLocation)), stk))
   | Lam(xs, b) => {
       let v = makeFun(
         false,
-        xs |> Js.List.toVector,
+        Js.List.toVector(xs),
         b,
         current_env(stk),
         {
@@ -829,12 +852,12 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         },
         getPrint(exp),
       )
-      return(v, stk)
+      return(v)(stk)
     }
   | GLam(xs, b) => {
       let v = makeFun(
         true,
-        xs |> Js.List.toVector,
+        Js.List.toVector(xs),
         b,
         current_env(stk),
         {
@@ -843,7 +866,7 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
         },
         getPrint(exp),
       )
-      return(v, stk)
+      return(v)(stk)
     }
   | Let(xes, b) => transitionLet(list{}, xes, b, stk)
   | Letrec(xes, b) => transitionLetrec(exp.ann, xes, b, stk)
@@ -867,7 +890,7 @@ and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
   | list{} => {
       let xvs = xvs->List.reverse->List.toArray
       let xs = xvs->Array.map(((x, _v)) => x)
-      let env = extend(current_env(stk), Array.concat(xs, xsOfBlock(b) |> List.toArray))
+      let env = extend(current_env(stk), Array.concat(xs, List.toArray(xsOfBlock(b))))
       xvs->Array.forEach(((x, v)) => {
         doSet(env, x, rmSrcLoc(v))
       })
@@ -952,21 +975,18 @@ and transitionPrg = ({ann, it: p}, env: environment) => {
   | PNil => Terminated(Tm)
   | PCons(t, p) =>
     switch t.it {
-    | Exp(exp) => {
-        // Js.Console.log(exp.ann.sourceLocation)
-        doEv(exp, new_pile({ctx: new_pile({ann, it: PExp(((), exp.ann.sourceLocation), p)}), env}))
-      }
+    | Exp(exp) =>
+      // Js.Console.log(exp.ann.sourceLocation)
+      doEv(exp, new_pile({ctx: new_pile({ann, it: PExp(((), exp.ann.sourceLocation), p)}), env}))
     | Def(d) =>
       switch d.it {
       | Var(x, exp) =>
         doEv(
           exp,
-          new_pile(
-            {
-              ctx: new_pile({ann, it: PDef(x, ((), exp.ann.sourceLocation), p)}),
-              env,
-            },
-          ),
+          new_pile({
+            ctx: new_pile({ann, it: PDef(x, ((), exp.ann.sourceLocation), p)}),
+            env,
+          }),
         )
       | Fun(f, xs, fb) => {
           let v = makeFun(
@@ -1006,7 +1026,7 @@ and transitionCnd = (ebs, ob, stk: stack) => {
   switch ebs {
   | list{} =>
     switch ob {
-    | None => return(Con(Uni), stk)
+    | None => return(Con(Uni))(stk)
     | Some(b) => doBlk(b, None, stk)
     }
   | list{(e, b), ...ebs} => {
@@ -1029,7 +1049,7 @@ and transitionBgn = (es, e, stk: stack) => {
 //   doEv(e, stk)
 // }
 and doAppPrm = (p, vs, stk): state => {
-  delta(p, vs, stk)
+  delta(p, vs)(stk)
 }
 and doApp = (v, vs, stk): state => {
   switch asFun(v) {
@@ -1038,9 +1058,9 @@ and doApp = (v, vs, stk): state => {
       let env = extend(env, Array.concat(xs, xsOfBlock(b)->List.toArray))
 
       {
-        xs |> Js.Array.forEachi((x, i) => {
-          doSet(env, x, Js.List.nth(vs, i) |> Js.Option.getExn)
-        })
+        Js.Array.forEachi((x, i) => {
+          doSet(env, x, Js.Option.getExn(Js.List.nth(vs, i)))
+        }, xs)
       }
 
       if isGen {
@@ -1048,7 +1068,7 @@ and doApp = (v, vs, stk): state => {
         let v = VGen({id, status: ref(Fresh(b, env))})
         allHavs := list{v, ...allHavs.contents}
         Continuing(Returning(v, stk))
-        // return(v, stk)
+        // return(v)(stk)
       } else {
         Continuing(entering(App, b, env, stk))
       }
@@ -1060,7 +1080,7 @@ and doApp = (v, vs, stk): state => {
 and doPrint = (v, stk): state => {
   let v = outputletOfValue(v)
   printStdout(v)
-  return(Con(Uni), stk)
+  return(Con(Uni))(stk)
 }
 and entering = (entrance, b, env, stk) => {
   let stk = switch stk {
@@ -1151,7 +1171,7 @@ let load = (program: program<printAnn>, randomSeed: string, p: bool) => {
   randomInt := makeRandomInt(randomSeed)
 
   // now let's get started
-  let xs = program |> SMoL.xsOfProgram |> List.toArray
+  let xs = List.toArray(SMoL.xsOfProgram(program))
   try {
     let env = makeTopLevel(initialEnv, xs)
     transitionPrg(program, env)
@@ -1169,7 +1189,7 @@ let doNext = (generator, stk) => {
     }
   | Suspended({topping, base}, env) => {
       r := Running
-      return(Con(Uni), add_pile({ctx: {topping, base: {isGen: Some(generator), base}}, env}, stk))
+      return(Con(Uni))(add_pile({ctx: {topping, base: {isGen: Some(generator), base}}, env}, stk))
     }
   | Running => raise(RuntimeError(AnyError("This generator is already running.")))
 
@@ -1180,7 +1200,7 @@ let doNext = (generator, stk) => {
 let transition = (state: continuing_state): state => {
   try {
     switch state {
-    | Returning(v, stk: stack) => return(v, stk)
+    | Returning(v, stk: stack) => return(v)(stk)
     | Entering(_, b, env, stk: stack) => doEntering(b, env, stk)
     | Reducing(redex, stk: stack) =>
       switch redex {
