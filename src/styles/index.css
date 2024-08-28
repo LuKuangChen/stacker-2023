@@ -103,9 +103,14 @@ code.blank {
     display: inline-flex;
     white-space: pre-wrap;
     color: black;
-    background-color: white;
 }
 
+code.blank {
+    background-color: white;
+}
+code.blank.marked {
+    background-color: yellow;
+}
 .now.calling {
     color: rgb(0, 0, 0);
     background-color: rgb(255, 187, 0);

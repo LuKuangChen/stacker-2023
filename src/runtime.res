@@ -6,7 +6,7 @@ type primitive = Primitive.t
 
 @module("./random") external make_random: string => unit => float = "make_random"
 
-let randomIntOfRandom = (random) => {
+let randomIntOfRandom = random => {
   let f = (start, end) => {
     let delta = end - start
     let offset = Js.Math.round(random() *. Int.toFloat(delta))->Int.fromFloat
@@ -67,7 +67,7 @@ module EnvironmentID = {
 
 type rec environmentFrame = {
   id: EnvironmentID.t,
-  content: array<(annotated<symbol, printAnn>, ref<option<value>>)>,
+  content: array<(annotated<symbol, printAnn>, ref<(bool, option<value>)>)>,
 }
 and generatorStatus =
   | Fresh(block<printAnn>, environment)
@@ -78,7 +78,7 @@ and bodyBase = {isGen: option<generator>, base: bodyBaseBase}
 and environment = list<environmentFrame>
 and vector = {
   id: int,
-  contents: array<value>,
+  contents: array<(bool, value)>,
 }
 and function = {
   id: int,
@@ -249,7 +249,7 @@ let outputletOfValue = (v: value): outputlet => {
         Ref(r)
       } else {
         let p = p(list{id, ...visited})
-        let es = List.fromArray(Array.map(es, p))
+        let es = List.fromArray(Array.map(es, ((_recentlyChanged, v)) => p(v)))
         Struct(Map.get(hMap, id), Vec(es))
       }
     }
@@ -285,10 +285,41 @@ let newHavId = () => randomInt.contents(100, 1000)
 let newEnvId = () => randomInt.contents(1000, 10000)
 
 let allEnvs = ref(list{})
+let unmarkEnvs = () => {
+  allEnvs.contents->List.forEach(env => {
+    env
+    ->List.head
+    ->Option.forEach(frame => {
+      frame.content->Array.forEach(
+        ((_x, box)) => {
+          let (_recentlyChanged, v) = box.contents
+          box.contents = (false, v)
+        },
+      )
+    })
+  })
+}
 
 type heap = ref<list<value>>
 // hav = Heap-Allocated Values
 let allHavs: ref<list<value>> = ref(list{})
+let unmarkHavs = () => {
+  allHavs.contents->List.forEach(v => {
+    switch v {
+    | Vec(v) => {
+        let v = v.contents
+        let changed = v->Array.map(((recentlyChanged, _v)) => recentlyChanged)
+        changed->Array.forEachWithIndex((changed, i) => {
+          if changed {
+            let (_, e) = v[i]->Option.getExn
+            v[i] = (false, e)
+          }
+        })
+      }
+    | _ => ()
+    }
+  })
+}
 
 let printTopLevel = ref(true)
 
@@ -329,7 +360,7 @@ let makeTopLevel = (env, xs): environment => {
   let id = EnvironmentID.TopLevel
   let frm = {
     id,
-    content: Js.Array.map(x => (x, ref(None)), xs),
+    content: Js.Array.map(x => (x, ref((false, None))), xs),
   }
   let env = list{frm, ...env}
   allEnvs := list{env, ...allEnvs.contents}
@@ -344,7 +375,7 @@ let extend = (env, xs): environment => {
   let id = EnvironmentID.Extended(newEnvId())
   let frm = {
     id,
-    content: Js.Array.map(x => (x, ref(None)), xs),
+    content: Js.Array.map(x => (x, ref((false, None))), xs),
   }
   let env = list{frm, ...env}
   allEnvs := list{env, ...allEnvs.contents}
@@ -375,7 +406,8 @@ let rec lookup = (env: environment, x) => {
 }
 
 let doRef = (env, x) => {
-  switch lookup(env, x).contents {
+  let (_, v) = lookup(env, x).contents
+  switch v {
   | None => raise(RuntimeError(UsedBeforeInitialization(x)))
   | Some(v) => v
   }
@@ -391,7 +423,7 @@ let doSet = (env: environment, x: annotated<symbol, printAnn>, v: value) => {
 
   | _ => ()
   }
-  lookup(env, x.it).contents = Some(v)
+  lookup(env, x.it).contents = (true, Some(v))
 }
 
 type stack = pile<frame<bodyBase>, frame<programBase>>
@@ -546,25 +578,24 @@ let equal2 = (u: value, v: value) => {
   let fmt = (i, j) => `${Int.toString(i)}|${Int.toString(j)}`
   let rec f = (u, v) => {
     switch (u, v) {
-    | (Vec(u), Vec(v)) => {
+    | (Vec(u), Vec(v)) =>
       if u.id === v.id || Set.has(visited, fmt(u.id, v.id)) {
         true
       } else {
         Set.add(visited, fmt(u.id, v.id))
-        let u = u.contents;
-        let v = v.contents;
+        let u = u.contents
+        let v = v.contents
         if Array.length(u) != Array.length(v) {
           false
         } else {
-          Array.everyWithIndex(
-            u,
-            (ue, i) => {
-              let ve = Option.getExn(v[i])
-              f(ue, ve)
-            })
+          Array.everyWithIndex(u, (ue, i) => {
+            let ve = Option.getExn(v[i])
+            let (_, ue) = ue
+            let (_, ve) = ve
+            f(ue, ve)
+          })
         }
       }
-    }
     | _ => u == v
     }
   }
@@ -628,9 +659,9 @@ and yield = (v: value, s: stack): state => {
     }
   }
 }
-and make_vector = vs => {
+and make_vector = (vs: list<value>) => {
   let id = newHavId()
-  let v = Vec({id, contents: List.toArray(vs)})
+  let v = Vec({id, contents: vs->List.map(v => (false, v))->List.toArray})
   allHavs := list{v, ...allHavs.contents}
   return(v)
 }
@@ -655,7 +686,7 @@ and delta = (p, vs) =>
   | (Cmp(Ne), list{v, ...vs}) => return(deltaCmp((a, b) => a != b, v, vs))
   | (VecNew, vs) => {
       let id = newHavId()
-      let v = Vec({id, contents: List.toArray(vs)})
+      let v = Vec({id, contents: vs->List.map(v => (false, v))->List.toArray})
       allHavs := list{v, ...allHavs.contents}
       return(v)
     }
@@ -665,7 +696,7 @@ and delta = (p, vs) =>
       let v_ind = asNum(v_ind)->Float.toInt
       switch vs[v_ind] {
       | None => raise(RuntimeError(OutOfBound(Array.length(vs), v_ind)))
-      | Some(v) => return(v)
+      | Some((_, v)) => return(v)
       }
     }
 
@@ -697,7 +728,7 @@ and delta = (p, vs) =>
       let v_ind = 0
       switch vs[v_ind] {
       | None => raise(Impossible("we have checked that this value is a pair"))
-      | Some(v) => return(v)
+      | Some((_, v)) => return(v)
       }
     }
 
@@ -706,7 +737,7 @@ and delta = (p, vs) =>
       let v_ind = 1
       switch vs[v_ind] {
       | None => raise(Impossible("we have checked that this value is a pair"))
-      | Some(v) => return(v)
+      | Some((_, v)) => return(v)
       }
     }
 
@@ -1199,6 +1230,8 @@ let doNext = (generator, stk) => {
 
 let transition = (state: continuing_state): state => {
   try {
+    unmarkEnvs()
+    unmarkHavs()
     switch state {
     | Returning(v, stk: stack) => return(v)(stk)
     | Entering(_, b, env, stk: stack) => doEntering(b, env, stk)
@@ -1206,7 +1239,7 @@ let transition = (state: continuing_state): state => {
       switch redex {
       | Setting(x, v) => setting(x, v, stk)
       | Nexting(gen) => doNext(gen, stk)
-      | VecSetting(v, i, e) => doVecSet(v, i, e, stk)
+      | VecSetting(v, i, e) => doVecSet(v, i, (true, e), stk)
       | Applying(f, vs) => doApp(f, vs, stk)
       | Printing(v) => doPrint(v, stk)
       | Yielding(v) => yield(v, stk)

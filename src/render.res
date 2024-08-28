@@ -9,7 +9,7 @@ open SMoL
 open SExpression
 open! Runtime
 
-let stringOfKindedSourceLocation = ({ nodeKind, sourceLocation}) => {
+let stringOfKindedSourceLocation = ({nodeKind, sourceLocation}) => {
   `${NodeKind.toString(nodeKind)}-${SourceLocation.toString(sourceLocation)}`
 }
 
@@ -87,10 +87,7 @@ let array_interleave = (arr, sep) => {
     arr
   } else {
     let prefix = [Option.getExn(arr[0])]
-    let suffix = Array.flatMap(Array.slice(arr, ~start=1, ~end=Array.length(arr)), e => [
-      sep,
-      e,
-    ])
+    let suffix = Array.flatMap(Array.slice(arr, ~start=1, ~end=Array.length(arr)), e => [sep, e])
     Array.concat(prefix, suffix)
   }
 }
@@ -124,11 +121,16 @@ let blankElem = e => {
   <code className="blank"> {e} </code>
 }
 
-let blank = s => {
+let blank = (~marked=false, s) => {
   // Js.Console.log2("before split", s)
   let s = re_split(s, %re("/@[-_0-9a-zA-Z]+/g"))
   // Js.Console.log2("after split", s)
-  <code className="blank">
+  <code
+    className={`blank ${if marked {
+        "marked"
+      } else {
+        ""
+      }}`}>
     // {React.string(String.concat("<address>", s->List.fromArray))}
     {React.array(
       s->Array.mapWithIndex((s, i) => {
@@ -171,26 +173,29 @@ let safe_f = (string_of, safe_string_of, src) => {
 
 exception Impossible(string)
 let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => {
-  let printName = (x) => switch sk {
-  | Syntax.Lispy => SMoLPrinter.printName(x)
-  | JavaScript => JSPrinter.printName(x)
-  | Python => PYPrinter.printName(x)
-  | Pseudo => PCPrinter.printName(x)
-  }
+  let printName = x =>
+    switch sk {
+    | Syntax.Lispy => SMoLPrinter.printName(x)
+    | JavaScript => JSPrinter.printName(x)
+    | Python => PYPrinter.printName(x)
+    | Pseudo => PCPrinter.printName(x)
+    }
 
-  let printTerm = (x) => switch sk {
-  | Lispy => SMoLPrinter.printStandAloneTerm(x)
-  | JavaScript => JSPrinter.printStandAloneTerm(x)
-  | Python => PYPrinter.printStandAloneTerm(x)
-  | Pseudo => PCPrinter.printStandAloneTerm(x)
-  }
+  let printTerm = x =>
+    switch sk {
+    | Lispy => SMoLPrinter.printStandAloneTerm(x)
+    | JavaScript => JSPrinter.printStandAloneTerm(x)
+    | Python => PYPrinter.printStandAloneTerm(x)
+    | Pseudo => PCPrinter.printStandAloneTerm(x)
+    }
 
-  let printOutput = (x) => switch sk {
-  | Lispy => SMoLPrinter.printOutput(~sep="\n", x)
-  | JavaScript => JSPrinter.printOutput(~sep="\n", x)
-  | Python => PYPrinter.printOutput(~sep="\n", x)
-  | Pseudo => PCPrinter.printOutput(~sep="\n", x)
-  }
+  let printOutput = x =>
+    switch sk {
+    | Lispy => SMoLPrinter.printOutput(~sep="\n", x)
+    | JavaScript => JSPrinter.printOutput(~sep="\n", x)
+    | Python => PYPrinter.printOutput(~sep="\n", x)
+    | Pseudo => PCPrinter.printOutput(~sep="\n", x)
+    }
 
   let dummyAnn = it => {
     {
@@ -204,7 +209,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
   }
 
   let printExp = (e: expressionNode<sourceLocation>): string => {
-    printTerm(Exp(e |> dummyAnn))
+    printTerm(Exp(dummyAnn(e)))
   }
 
   let expr_of_value = (v: value): expressionNode<_> => {
@@ -276,10 +281,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
       })
     })
     // plug hole in
-    let hole = Option.getOr(
-      topping->List.head->Option.map(holeOfFrame),
-      holeOfProgramBase(base.it),
-    )
+    let hole = Option.getOr(topping->List.head->Option.map(holeOfFrame), holeOfProgramBase(base.it))
     print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
     // convert to React.element
     blank(print.contents.it->Print.toString)
@@ -295,10 +297,14 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
             let key = Int.toString(key)
             let (x, v) = xv
             <span key className="bind">
-              {blank(x.ann.print |> Print.toString)}
+              {blank(Print.toString(x.ann.print))}
               <span ariaHidden={true}> {React.string(" ↦ ")} </span>
               <span className="sr-only"> {React.string("to")} </span>
-              {blank(v.contents->Option.map(printVal)->Option.getOr("💣"))}
+              {
+                let (recentlyChanged, v) = v.contents
+                let v = v->Option.map(printVal)->Option.getOr("💣")
+                blank(~marked=recentlyChanged, v)
+              }
             </span>
           }),
         )}
@@ -309,7 +315,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
   let show_env = (env: environment) => {
     switch env {
     | list{} => raise(Impossible("An environment must have at least one frame."))
-    | list{frm, ..._rest} => blank(`@${frm.id |> EnvironmentID.toString |> printName}`)
+    | list{frm, ..._rest} => blank(`@${printName(EnvironmentID.toString(frm.id))}`)
     }
   }
 
@@ -321,11 +327,11 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
     | list{frm, ...rest} => {
         let {id, content: _} = frm
         <li
-          id={`def-${id |> EnvironmentID.toString |> printName}`}
+          id={`def-${printName(EnvironmentID.toString(id))}`}
           key={Int.toString(key)}
           className="env-frame box">
           <span>
-            {defblank(`@${id |> EnvironmentID.toString |> printName}`)}
+            {defblank(`@${printName(EnvironmentID.toString(id))}`)}
             <br />
             {React.string("binds ")}
             {show_envFrm(frm)}
@@ -368,7 +374,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
           | Fresh(b, env) =>
             <>
               <br />
-              {blank(b.ann.print |> Print.toString)}
+              {blank(Print.toString(b.ann.print))}
               <br />
               <span>
                 {React.string("with environment ")}
@@ -393,7 +399,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
     | VFun({id, isGen, sourceLocation: ann, print, env}) => {
         let id = id->Int.toString
         let ann = if sk != Lispy {
-          srcMap(ann) -> Option.getOr(ann.sourceLocation)
+          srcMap(ann)->Option.getOr(ann.sourceLocation)
         } else {
           ann.sourceLocation
         }
@@ -408,7 +414,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
               {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
               <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
             </summary>
-            {blank(print.it |> Print.toString)}
+            {blank(Print.toString(print.it))}
             <br />
           </details>
           <span>
@@ -426,8 +432,9 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
           {React.string("vec")}
           {React.array(
             vs
-            ->Array.map(printVal)
-            ->Array.map(blank)
+            ->Array.map(((recentlyChanged, v)) => {
+              blank(~marked=recentlyChanged, printVal(v))
+            })
             ->Array.mapWithIndex((e, i) =>
               <span key={Int.toString(i)}>
                 {React.string(" ")}
@@ -528,7 +535,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
         } else {
           <>
             <h1> {React.string("Output: ")} </h1>
-            <pre className="stdout"> {printOutput(List.reverse(stdout)) |> React.string} </pre>
+            <pre className="stdout"> {React.string(printOutput(List.reverse(stdout)))} </pre>
           </>
         }}
       </section>
@@ -578,9 +585,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
       <p className="now box calling">
         {React.string("Calling ")}
         {blank(
-          printExp(
-            App(expr_of_value(f) |> dummyAnn, vs->List.map(v => v |> expr_of_value |> dummyAnn)),
-          ),
+          printExp(App(dummyAnn(expr_of_value(f)), vs->List.map(v => dummyAnn(expr_of_value(v))))),
         )}
         <br />
         {React.string("in context ")}
@@ -610,7 +615,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
       <p className="now box replacing">
         {React.string("Rebinding a variable ")}
         <br />
-        {blank(Set(x, expr_of_value(v)->dummyAnn) |> printExp)}
+        {blank(printExp(Set(x, expr_of_value(v)->dummyAnn)))}
         <br />
         {React.string("in context ")}
         {ctx}
@@ -627,9 +632,9 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
           AppPrm(
             VecSet,
             list{
-              expr_of_value(Vec(v_vec)) |> dummyAnn,
-              expr_of_value(Con(Num(i |> Int.toFloat))) |> dummyAnn,
-              expr_of_value(v_val) |> dummyAnn,
+              dummyAnn(expr_of_value(Vec(v_vec))),
+              dummyAnn(expr_of_value(Con(Num(Int.toFloat(i))))),
+              dummyAnn(expr_of_value(v_val)),
             },
           )->printExp,
         )}
@@ -662,7 +667,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
           <p className="now box called">
             {React.string(`Evaluating ${string_of_entrace(entrance)}`)}
             <br />
-            {blank(b.ann.print |> Print.toString)}
+            {blank(Print.toString(b.ann.print))}
             <br />
             {React.string("in environment ")}
             {show_env(env)}
@@ -690,10 +695,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
   }
   switch s {
   | Terminated(state) =>
-    show_state(
-      <p> {React.string("(No stack frames)")} </p>,
-      nowOfTerminatedState(state)
-    )(
+    show_state(<p> {React.string("(No stack frames)")} </p>, nowOfTerminatedState(state))(
       show_all_envs(),
       show_all_havs(),
       stdout.contents,
