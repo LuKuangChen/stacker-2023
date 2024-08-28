@@ -187,10 +187,9 @@ let make = () => {
         open SExpression
         let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed, printTopLevel)
         let srcMap: kindedSourceLocation => option<sourceLocation> = {
-          let map = getProgramPrint(program) -> Print.toSourceMap
+          let map = getProgramPrint(program) -> Print.toSourceMap(stringOfKindedSourceLocation)
           (srcLoc) => {
-            Map.get(map, srcLoc)
-            // failwith("todo")
+            Map.get(map, stringOfKindedSourceLocation(srcLoc))
           }
         }
         Some({
