@@ -122,6 +122,7 @@ let blankElem = e => {
 }
 
 let blank = (~marked=false, s) => {
+  let marked = !firstState.contents && marked
   // Js.Console.log2("before split", s)
   let s = re_split(s, %re("/@[-_0-9a-zA-Z]+/g"))
   // Js.Console.log2("after split", s)

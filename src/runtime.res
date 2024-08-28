@@ -284,6 +284,8 @@ let xsOfTerms = (ts: list<term<printAnn>>) => {
 let newHavId = () => randomInt.contents(100, 1000)
 let newEnvId = () => randomInt.contents(1000, 10000)
 
+let firstState = ref(true)
+
 let allEnvs = ref(list{})
 let unmarkEnvs = () => {
   allEnvs.contents->List.forEach(env => {
@@ -1195,6 +1197,7 @@ and doBlk = (b: block<printAnn>, isGen, stk: stack): state => {
 
 let load = (program: program<printAnn>, randomSeed: string, p: bool) => {
   // initialize all global things
+  firstState := true
   allEnvs := list{}
   allHavs := list{}
   stdout := list{}
@@ -1230,6 +1233,7 @@ let doNext = (generator, stk) => {
 
 let transition = (state: continuing_state): state => {
   try {
+    firstState := false
     unmarkEnvs()
     unmarkHavs()
     switch state {
