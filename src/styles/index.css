@@ -63,7 +63,7 @@ section#stacker>article>section {
 }
 
 menu {
-    display: flex;
+    display: inline-flex;
     flex-wrap: wrap;
     flex-direction: row;
     padding: 0;

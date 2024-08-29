@@ -52,7 +52,7 @@ type running_state = {
   now: React.element,
   nexts: list<React.element>,
   latestState: Runtime.state,
-  srcMap: kindedSourceLocation => option<SExpression.sourceLocation>
+  srcMap: kindedSourceLocation => option<SExpression.sourceLocation>,
 }
 
 let pool_of_randomSeed = [
@@ -103,7 +103,7 @@ let make_preview = (sk: Syntax.t, printTopLevel, program) => {
     <>
       <span>
         {React.string(`(Showing the `)}
-        <u> {React.string(sk |> Syntax.toString)} </u>
+        <u> {React.string(Syntax.toString(sk))} </u>
         {React.string(` translation)`)}
       </span>
       <CodeEditor syntax={sk} program={program} readOnly={true} setProgram={_ => ()} />
@@ -135,14 +135,12 @@ let make = () => {
   let (parseFeedback, setParseFeedback) = React.useState(_ => "")
   let setProgram = (setter: string => string) => {
     setParseFeedback(_ => "")
-    rawSetProgram((v) => remove_lang_line(setter(v)))
+    rawSetProgram(v => remove_lang_line(setter(v)))
   }
   let (nNext, setNNext) = React.useState(_ => 0)
-  let (runtimeSyntax, setRuntimeSyntax) = React.useState(_ => {
-    Syntax.fromString(syntaxAtURL)
+  let (syntax, setSyntax) = React.useState(_ => {
+    Syntax.fromString(syntaxAtURL)->Option.getOr(Lispy)
   })
-  let (previewSyntax: option<Render.Syntax.t>, setPreviewSyntax) = React.useState(_ => None)
-  let actualRuntimeSyntax = Option.orElse(runtimeSyntax, previewSyntax)->Option.getOr(Render.Syntax.Lispy)
   let (printTopLevel, setPrintTopLevel) = React.useState(_ => printTopLevelAtURL)
   let (randomSeed: randomSeedConfig, setRandomSeed) = React.useState(_ => {
     if randomSeedAtURL == "" {
@@ -159,10 +157,10 @@ let make = () => {
         let latestState = Runtime.transition(latestState)
         Some({
           prevs: list{now, ...prevs},
-          now: Render.render(actualRuntimeSyntax, latestState, srcMap),
+          now: Render.render(syntax, latestState, srcMap),
           nexts: list{},
           latestState,
-          srcMap
+          srcMap,
         })
       }
 
@@ -172,12 +170,12 @@ let make = () => {
         now: e,
         nexts,
         latestState,
-        srcMap
+        srcMap,
       })
     }
   }
   let loadProgram = program => {
-    switch translateProgramFull(actualRuntimeSyntax, printTopLevel, program) {
+    switch translateProgramFull(syntax, printTopLevel, program) {
     | exception SMoLTranslateError(err) => {
         setParseFeedback(_ => TranslateError.toString(err))
         None
@@ -187,17 +185,17 @@ let make = () => {
         open SExpression
         let s: Runtime.state = Runtime.load(program, randomSeed.randomSeed, printTopLevel)
         let srcMap: kindedSourceLocation => option<sourceLocation> = {
-          let map = getProgramPrint(program) -> Print.toSourceMap(stringOfKindedSourceLocation)
-          (srcLoc) => {
+          let map = getProgramPrint(program)->Print.toSourceMap(stringOfKindedSourceLocation)
+          srcLoc => {
             Map.get(map, stringOfKindedSourceLocation(srcLoc))
           }
         }
         Some({
           prevs: list{},
           nexts: list{},
-          now: Render.render(actualRuntimeSyntax, s, srcMap),
+          now: Render.render(syntax, s, srcMap),
           latestState: s,
-          srcMap
+          srcMap,
         })
       }
     }
@@ -239,7 +237,8 @@ let make = () => {
       | Some({prevs, now, nexts, latestState, srcMap}) =>
         switch prevs {
         | list{} => raise(Impossible)
-        | list{e, ...prevs} => Some({prevs, now: e, nexts: list{now, ...nexts}, latestState, srcMap})
+        | list{e, ...prevs} =>
+          Some({prevs, now: e, nexts: list{now, ...nexts}, latestState, srcMap})
         }
       }
     )
@@ -254,10 +253,10 @@ let make = () => {
   | Some({prevs: _, now: _, nexts: list{}, latestState: Continuing(_)}) => true
   | Some({prevs: _, now: _, nexts: list{_e, ..._nexts}, latestState: _}) => true
   }
-  let onShare = (readOnlyMode) => _ => {
+  let onShare = readOnlyMode => _ => {
     openPopUp(
       make_url(
-        actualRuntimeSyntax->Syntax.toString,
+        syntax->Syntax.toString,
         randomSeed.randomSeed,
         nNext,
         program,
@@ -268,6 +267,7 @@ let make = () => {
   }
   let onKeyDown = evt => {
     let key = ReactEvent.Keyboard.key(evt)
+
     // Js.log(`Key pressed (${key})`)
     if key == "j" && prevable {
       onPrevClick(evt)
@@ -298,11 +298,6 @@ let make = () => {
       {React.string("Next")}
       // <kbd> {React.string("k")} </kbd>
     </button>
-  let previewProgram = previewSyntax => {
-    _event => {
-      setPreviewSyntax(_ => previewSyntax)
-    }
-  }
   let editorConfig = if readOnlyMode {
     <> </>
   } else {
@@ -344,13 +339,16 @@ let make = () => {
     <>
       <details>
         <summary>
-          {React.string("Example programs (")}
+          {React.string("The program must be ")}
+          <em> {React.string("edited")} </em>
+          {React.string(" in the ")}
           <a
             href="https://docs.google.com/document/d/e/2PACX-1vTMVCrUYliicrunyxftDwv6HVmBeKaRW9-VF9Xh1GUFoHMmomOczz_RRIZXPJoH8WB66x-d4GlRvwuy/pub">
-            {React.string("The SMoL Language Reference")}
+            {React.string("Lispy")}
           </a>
-          {React.string("):")}
+          {React.string(" syntax.")}
         </summary>
+        {React.string("Example programs:")}
         <menu ariaLabel="a list of example programs">
           <li>
             <button
@@ -376,14 +374,6 @@ let make = () => {
               {React.string("Counter")}
             </button>
           </li>
-          // <li>
-          //   <button
-          //     disabled={is_running}
-          //     value="Counter2"
-          //     onClick={_evt => setProgram(_ => Programs.program_ctr2)}>
-          //     {React.string("Counter2")}
-          //   </button>
-          // </li>
           <li>
             <button
               disabled={is_running}
@@ -402,6 +392,27 @@ let make = () => {
           </li>
         </menu>
       </details>
+      <span>
+        {React.string("Stacker will ")}
+        <em> {React.string("present")} </em>
+        {React.string(" in the ")}
+        {
+          let onChange = evt => {
+            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+            setSyntax(_ => Syntax.fromString(newValue)->Option.getOr(Lispy))
+          }
+          <select onChange disabled={is_running}>
+            {React.array(
+              Syntax.all->Array.map(s => {
+                <option selected={s == syntax} value={Syntax.toString(s)}>
+                  {React.string({Syntax.toString(s)})}
+                </option>
+              }),
+            )}
+          </select>
+        }
+        {React.string(" syntax.")}
+      </span>
       {if is_running {
         <p>
           <mark>
@@ -416,36 +427,6 @@ let make = () => {
         React.array([])
       }}
       <span className="parse-feedback"> {React.string(parseFeedback)} </span>
-      <span>
-        {React.string("Show translation at right ➡️:")}
-        {React.array(
-          Syntax.all
-          ->Array.filter(s => s != Lispy)
-          ->Array.map(s => {
-            <label>
-              <input
-                disabled={is_running}
-                type_="radio"
-                name="previewSyntax"
-                value={s->Syntax.toString}
-                onClick={previewProgram(Some(s))}
-              />
-              <span> {React.string({s->Syntax.toString})} </span>
-            </label>
-          }),
-        )}
-        <label>
-          <input
-            disabled={is_running}
-            type_="radio"
-            name="previewSyntax"
-            value="off"
-            onClick={previewProgram(None)}
-            checked={previewSyntax == None}
-          />
-          <span> {React.string("off")} </span>
-        </label>
-      </span>
     </>
   }
   let advancedConfiguration = if readOnlyMode {
@@ -456,28 +437,6 @@ let make = () => {
         <span ariaHidden={true}> {React.string("⚙️ ")} </span>
         {React.string("Advanced configuration:")}
       </summary>
-      <label>
-        {React.string("Syntax-flavor = ")}
-        {
-          let onChange = evt => {
-            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
-            setRuntimeSyntax(_ => Syntax.fromString(newValue))
-          }
-          <select onChange disabled={is_running}>
-            <option selected={None == runtimeSyntax} value="auto">
-              {React.string("Auto")}
-            </option>
-            {React.array(
-              Syntax.all->Array.map(s => {
-                <option selected={Some(s) == runtimeSyntax} value={Syntax.toString(s)}>
-                  {React.string({Syntax.toString(s)})}
-                </option>
-              }),
-            )}
-          </select>
-        }
-      </label>
-      <br />
       <label>
         {React.string("Random seed = ")}
         {
@@ -536,12 +495,12 @@ let make = () => {
         }}>
         <CodeEditor
           syntax={if is_running {
-            actualRuntimeSyntax
+            syntax
           } else {
             Lispy
           }}
-          program={if (is_running && actualRuntimeSyntax != Lispy) {
-            translateProgram(actualRuntimeSyntax, printTopLevel, program)
+          program={if is_running && syntax != Lispy {
+            translateProgram(syntax, printTopLevel, program)
           } else {
             program
           }}
@@ -572,20 +531,18 @@ let make = () => {
         <li>
           <button onClick={onShare(readOnlyMode)} disabled={!is_running}>
             <span ariaHidden={true}> {React.string("🔗 ")} </span>
-            {React.string("Share This Configuration")}
+            {React.string(
+              if readOnlyMode {
+                "Share"
+              } else {
+                "Share This Configuration"
+              },
+            )}
           </button>
         </li>
         {if readOnlyMode {
           <li>
-            <a
-              href={make_url(
-                actualRuntimeSyntax->Syntax.toString,
-                "",
-                -1,
-                program,
-                false,
-                printTopLevel,
-              )}>
+            <a href={make_url(syntax->Syntax.toString, "", -1, program, false, printTopLevel)}>
               {React.string("✎ edit")}
             </a>
           </li>
@@ -609,9 +566,10 @@ let make = () => {
             </button>
             {React.string(".")}
           </p>
-          {switch previewSyntax {
-          | None => <> </>
-          | Some(sk) => make_preview(sk, printTopLevel, program)
+          {if syntax == Lispy {
+            <> </>
+          } else {
+            make_preview(syntax, printTopLevel, program)
           }}
         </>
       | Some(s) => s.now
