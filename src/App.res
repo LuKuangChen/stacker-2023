@@ -177,7 +177,7 @@ let make = () => {
     }
   }
   let loadProgram = program => {
-    switch translateProgramFull(Option.getOr(runtimeSyntax, Lispy), printTopLevel, program) {
+    switch translateProgramFull(actualRuntimeSyntax, printTopLevel, program) {
     | exception SMoLTranslateError(err) => {
         setParseFeedback(_ => TranslateError.toString(err))
         None
@@ -465,7 +465,7 @@ let make = () => {
           }
           <select onChange disabled={is_running}>
             <option selected={None == runtimeSyntax} value="auto">
-              {React.string(`Auto (${actualRuntimeSyntax |> Syntax.toString})`)}
+              {React.string("Auto")}
             </option>
             {React.array(
               Syntax.all->Array.map(s => {
@@ -534,7 +534,6 @@ let make = () => {
         style={{
           fontSize: FontSize.toString(editorFontSize),
         }}>
-        // <pre>{reactOfPrint(translateProgramFull(actualRuntimeSyntax, printTopLevel, program) |> getProgramPrint)}</pre>
         <CodeEditor
           syntax={if is_running {
             actualRuntimeSyntax
