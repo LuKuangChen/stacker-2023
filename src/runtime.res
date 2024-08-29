@@ -414,8 +414,8 @@ let doRef = (env, x) => {
   | Some(v) => v
   }
 }
-let doSet = (env: environment, x: annotated<symbol, printAnn>, v: value) => {
-  // Js.log(`Setting`)
+
+let doSetAbs = (mark: bool, env: environment, x: annotated<symbol, printAnn>, v: value) => {
   switch v {
   | VFun({name}) =>
     switch name.contents {
@@ -425,7 +425,16 @@ let doSet = (env: environment, x: annotated<symbol, printAnn>, v: value) => {
 
   | _ => ()
   }
-  lookup(env, x.it).contents = (true, Some(v))
+  lookup(env, x.it).contents = (mark, Some(v))
+}
+let doSetArg = (env: environment, x: annotated<symbol, printAnn>, v: value) => {
+  // Setting function call arguments does not need to mark the new binding as
+  // users have seen the value when stacker pauses right before entering the
+  // function body
+  doSetAbs(false, env, x, v)
+}
+let doSetVar = (env: environment, x: annotated<symbol, printAnn>, v: value) => {
+  doSetAbs(true, env, x, v)
 }
 
 type stack = pile<frame<bodyBase>, frame<programBase>>
@@ -785,7 +794,7 @@ and doVecSet = ({contents: vs}, v_ind, v_val, stk: stack) => {
   }
 }
 and setting = (x, v, stk: stack) => {
-  doSet(current_env(stk), x, v)
+  doSetVar(current_env(stk), x, v)
   return(Con(Uni))(stk)
 }
 and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: environment) => {
@@ -794,7 +803,7 @@ and continueTopLevel = (v: value, ctx: pile<contextFrame, programBase>, env: env
   | list{} =>
     switch base.it {
     | PDef(x, ((), _srcLoc), p) =>
-      doSet(env, x, v)
+      doSetVar(env, x, v)
       transitionPrg(p, env)
     | PExp(((), _srcLoc), p) =>
       if printTopLevel.contents {
@@ -825,7 +834,7 @@ and continueBody = (v: value, ctx, env, stk): state => {
       }
     | BdyExp(((), _srcLoc), b) => transitionBlock(b, isGen, env, stk)
     | BdyDef(x, ((), _srcLoc), b) => {
-        doSet(env, x, v)
+        doSetVar(env, x, v)
         transitionBlock(b, isGen, env, stk)
       }
     }
@@ -925,7 +934,7 @@ and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
       let xs = xvs->Array.map(((x, _v)) => x)
       let env = extend(current_env(stk), Array.concat(xs, List.toArray(xsOfBlock(b))))
       xvs->Array.forEach(((x, v)) => {
-        doSet(env, x, rmSrcLoc(v))
+        doSetVar(env, x, rmSrcLoc(v))
       })
       Continuing(entering(Let, b, env, stk))
     }
@@ -981,7 +990,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
             },
             getDefinitionPrint(d),
           )
-          doSet(env, f, v)
+          doSetVar(env, f, v)
           transitionBlock(b, isGen, env, stk)
         }
       | GFun(f, xs, fb) => {
@@ -996,7 +1005,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
             },
             getDefinitionPrint(d),
           )
-          doSet(env, f, v)
+          doSetVar(env, f, v)
           transitionBlock(b, isGen, env, stk)
         }
       }
@@ -1033,7 +1042,7 @@ and transitionPrg = ({ann, it: p}, env: environment) => {
             },
             getDefinitionPrint(d),
           )
-          doSet(env, f, v)
+          doSetVar(env, f, v)
           transitionPrg(p, env)
         }
       | GFun(f, xs, fb) => {
@@ -1048,7 +1057,7 @@ and transitionPrg = ({ann, it: p}, env: environment) => {
             },
             getDefinitionPrint(d),
           )
-          doSet(env, f, v)
+          doSetVar(env, f, v)
           transitionPrg(p, env)
         }
       }
@@ -1092,7 +1101,7 @@ and doApp = (v, vs, stk): state => {
 
       {
         Js.Array.forEachi((x, i) => {
-          doSet(env, x, Js.Option.getExn(Js.List.nth(vs, i)))
+          doSetAbs(false, env, x, Js.Option.getExn(Js.List.nth(vs, i)))
         }, xs)
       }
 
