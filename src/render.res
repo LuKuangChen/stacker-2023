@@ -173,7 +173,7 @@ let safe_f = (string_of, safe_string_of, src) => {
 }
 
 exception Impossible(string)
-let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => {
+let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLocation>) => {
   let printName = x =>
     switch sk {
     | Syntax.Lispy => SMoLPrinter.printName(x)
@@ -269,7 +269,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
       topping->List.head->Option.map(holeOfFrame),
       holeOfBodyBase(base.base.it),
     )
-    print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
+    print := substituteById(print.contents, exprLoc(hole), Plain(holeText))
     blank(print.contents.it->Print.toString)
   }
 
@@ -283,7 +283,7 @@ let render = (sk, s, srcMap: kindedSourceLocation => option<sourceLocation>) => 
     })
     // plug hole in
     let hole = Option.getOr(topping->List.head->Option.map(holeOfFrame), holeOfProgramBase(base.it))
-    print := substituteById(print.contents, exprLoc(hole), Plain("◌"))
+    print := substituteById(print.contents, exprLoc(hole), Plain(holeText))
     // convert to React.element
     blank(print.contents.it->Print.toString)
   }

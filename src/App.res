@@ -4,14 +4,17 @@ open Render
 @module("./url_parameters") external syntaxAtURL: string = "syntaxAtURL"
 @module("./url_parameters") external printTopLevelAtURL: bool = "printTopLevelAtURL"
 @module("./url_parameters") external randomSeedAtURL: string = "randomSeedAtURL"
+@module("./url_parameters") external holeAtURL: string = "holeAtURL"
 @module("./url_parameters") external nNextAtURL: int = "nNextAtURL"
 @module("./url_parameters") external programAtURL: string = "programAtURL"
 @module("./url_parameters") external readOnlyMode: bool = "readOnlyMode"
 @module("./url_parameters")
-external make_url: (string, string, int, string, bool, bool) => string = "make_url"
+external make_url: (string, string, string, int, string, bool, bool) => string = "make_url"
 @scope("window") @val external openPopUp: string => unit = "openPopUp"
 
 exception Impossible
+
+let defaultHole = "•"
 
 module FontSize = {
   type t =
@@ -149,6 +152,13 @@ let make = () => {
       {isSet: true, randomSeed: randomSeedAtURL}
     }
   })
+  let (hole, setHole) = React.useState(_ => {
+    if holeAtURL == "" {
+      defaultHole
+    } else {
+      holeAtURL
+    }
+  })
   let forward = s => {
     switch s {
     | None => raise(Impossible)
@@ -157,7 +167,7 @@ let make = () => {
         let latestState = Runtime.transition(latestState)
         Some({
           prevs: list{now, ...prevs},
-          now: Render.render(syntax, latestState, srcMap),
+          now: Render.render(syntax, hole, latestState, srcMap),
           nexts: list{},
           latestState,
           srcMap,
@@ -193,7 +203,7 @@ let make = () => {
         Some({
           prevs: list{},
           nexts: list{},
-          now: Render.render(syntax, s, srcMap),
+          now: Render.render(syntax, hole, s, srcMap),
           latestState: s,
           srcMap,
         })
@@ -258,6 +268,7 @@ let make = () => {
       make_url(
         syntax->Syntax.toString,
         randomSeed.randomSeed,
+        hole,
         nNext,
         program,
         readOnlyMode,
@@ -455,6 +466,17 @@ let make = () => {
       </label>
       <br />
       <label>
+        {React.string("Hole = ")}
+        {
+          let onChange = evt => {
+            let newValue: string = ReactEvent.Form.currentTarget(evt)["value"]
+            setHole(_ => newValue)
+          }
+          <input disabled={is_running} type_="text" value={hole} onChange />
+        }
+      </label>
+      <br />
+      <label>
         {React.string("Print the values of top-level expressions")}
         <input
           type_="checkbox"
@@ -542,7 +564,7 @@ let make = () => {
         </li>
         {if readOnlyMode {
           <li>
-            <a href={make_url(syntax->Syntax.toString, "", -1, program, false, printTopLevel)}>
+            <a href={make_url(syntax->Syntax.toString, "", hole, -1, program, false, printTopLevel)}>
               {React.string("✎ edit")}
             </a>
           </li>
