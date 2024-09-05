@@ -102,7 +102,7 @@ and value =
   | VGen(generator)
   // Vectors
   | Vec(vector)
-and contextFrame =
+and contextFrameNode =
   | Yield1((unit, sourceLocation))
   | Set1(annotated<symbol, printAnn>, (unit, sourceLocation))
   | App1((unit, sourceLocation), list<expression<printAnn>>)
@@ -132,14 +132,16 @@ and contextFrame =
       option<block<printAnn>>,
     )
   | Bgn1((unit, sourceLocation), list<expression<printAnn>>, expression<printAnn>)
-and frame<'base> = {ctx: pile<contextFrame, 'base>, env: environment}
+and contextFrame = annotated<contextFrameNode, printAnn>
+
+type frame<'base> = {ctx: pile<contextFrame, 'base>, env: environment}
 
 let rmSrcLoc = ((it, _): ('a, sourceLocation)): 'a => {
   it
 }
 
 let holeOfFrame = (f: contextFrame): sourceLocation => {
-  switch f {
+  switch f.it {
   | Yield1((_, srcLoc)) => srcLoc
   | Set1(_, ((), srcLoc)) => srcLoc
   | App1(((), srcLoc), _) => srcLoc
@@ -153,7 +155,7 @@ let holeOfFrame = (f: contextFrame): sourceLocation => {
 }
 
 let valuesOfFrame = (f: contextFrame): list<(value, sourceLocation)> => {
-  switch f {
+  switch f.it {
   | Yield1(_) => list{}
   | Set1(_, _) => list{}
   | App1(_, _) => list{}
@@ -843,31 +845,31 @@ and continueBody = (v: value, ctx, env, stk): state => {
   }
 }
 and handleCtxFrame = (v: value, ctxFrame, stk: stack) => {
-  switch ctxFrame {
+  switch ctxFrame.it {
   | Set1(x, ((), _srcLoc)) => Continuing(Reducing(Setting(x, v), stk))
   | Let1(xvs, (x, ((), srcLoc)), xes, b) =>
-    transitionLet(list{(x, (v, srcLoc)), ...xvs}, xes, b, stk)
+    transitionLet(ctxFrame.ann, list{(x, (v, srcLoc)), ...xvs}, xes, b, stk)
   | App1(((), srcLoc), exps) =>
     let fun = v
     and vals = list{}
-    transitionApp((fun, srcLoc), vals, exps, stk)
+    transitionApp(ctxFrame.ann, (fun, srcLoc), vals, exps, stk)
   | App2(fun, vals, ((), srcLoc), exps) =>
     let vals = list{(v, srcLoc), ...vals}
-    transitionApp(fun, vals, exps, stk)
+    transitionApp(ctxFrame.ann, fun, vals, exps, stk)
   | AppPrm1(fun, vals, ((), srcLoc), exps) =>
     let vals = list{(v, srcLoc), ...vals}
-    transitionAppPrm(fun, vals, exps, stk)
+    transitionAppPrm(ctxFrame.ann, fun, vals, exps, stk)
   | Cnd1(((), _srcLoc), b, ebs, ob) =>
     switch asLgc(v) {
     | true => doBlk(b, None, stk)
-    | false => transitionCnd(ebs, ob, stk)
+    | false => transitionCnd(ctxFrame.ann, ebs, ob, stk)
     }
   | If1(((), _srcLoc), e_thn, e_els) =>
     switch asLgc(v) {
     | true => doEv(e_thn, stk)
     | false => doEv(e_els, stk)
     }
-  | Bgn1(((), _srcLoc), es, e) => transitionBgn(es, e, stk)
+  | Bgn1(((), _srcLoc), es, e) => transitionBgn(ctxFrame.ann, es, e, stk)
   | Yield1((), _srcLoc) =>
     // switch stk {}
     Continuing(Reducing(Yielding(v), stk))
@@ -880,8 +882,10 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
     let val = doRef(current_env(stk), x)
     return(val)(stk)
   | Set(x, e) =>
-    let exp = e
-    doEv(exp, consCtx(Set1(x, ((), exp.ann.sourceLocation)), stk))
+    doEv(e, consCtx({
+      it: Set1(x, ((), e.ann.sourceLocation)),
+      ann: exp.ann
+    }, stk))
   | Lam(xs, b) => {
       let v = makeFun(
         false,
@@ -910,24 +914,32 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
       )
       return(v)(stk)
     }
-  | Let(xes, b) => transitionLet(list{}, xes, b, stk)
+  | Let(xes, b) => transitionLet(exp.ann, list{}, xes, b, stk)
   | Letrec(xes, b) => transitionLetrec(exp.ann, xes, b, stk)
 
-  | Bgn(es, e) => transitionBgn(es, e, stk)
+  | Bgn(es, e) => transitionBgn(exp.ann, es, e, stk)
 
-  | AppPrm(p, es) => transitionAppPrm(p, list{}, es, stk)
+  | AppPrm(p, es) => transitionAppPrm(exp.ann, p, list{}, es, stk)
   | App(e, es) =>
-    let exp = e
-    doEv(exp, consCtx(App1(((), exp.ann.sourceLocation), es), stk))
-  | Cnd(ebs, ob) => transitionCnd(ebs, ob, stk)
+    doEv(e, consCtx({
+      it: App1(((), e.ann.sourceLocation), es),
+      ann: exp.ann
+    }, stk))
+  | Cnd(ebs, ob) => transitionCnd(exp.ann, ebs, ob, stk)
   | If(e_cnd, e_thn, e_els) =>
-    doEv(e_cnd, consCtx(If1(((), e_cnd.ann.sourceLocation), e_thn, e_els), stk))
-  | Yield(e) => doEv(e, consCtx(Yield1((), e.ann.sourceLocation), stk))
+    doEv(e_cnd, consCtx({
+      it: If1(((), e_cnd.ann.sourceLocation), e_thn, e_els),
+      ann: exp.ann
+    }, stk))
+  | Yield(e) => doEv(e, consCtx({
+    it: Yield1((), e.ann.sourceLocation),
+    ann: exp.ann
+  }, stk))
   }
 and transitionLetrec = (_ann, _xes: list<bind<printAnn>>, _b: block<printAnn>, _stk: stack) => {
   raiseRuntimeError(AnyError("letrec is no longer supported"))
 }
-and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
+and transitionLet = (ann, xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
   switch xes {
   | list{} => {
       let xvs = xvs->List.reverse->List.toArray
@@ -940,7 +952,10 @@ and transitionLet = (xvs, xes: list<bind<printAnn>>, b, stk: stack) => {
     }
 
   | list{{it: (x, e)}, ...xes} =>
-    doEv(e, consCtx(Let1(xvs, (x, ((), e.ann.sourceLocation)), xes, b), stk))
+    doEv(e, consCtx({
+      ann,
+      it: Let1(xvs, (x, ((), e.ann.sourceLocation)), xes, b)
+    }, stk))
   }
 }
 and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, stk: stack) => {
@@ -1064,7 +1079,7 @@ and transitionPrg = ({ann, it: p}, env: environment) => {
     }
   }
 }
-and transitionCnd = (ebs, ob, stk: stack) => {
+and transitionCnd = (ann, ebs, ob, stk: stack) => {
   switch ebs {
   | list{} =>
     switch ob {
@@ -1073,14 +1088,18 @@ and transitionCnd = (ebs, ob, stk: stack) => {
     }
   | list{(e, b), ...ebs} => {
       let exp = e
-      doEv(exp, consCtx(Cnd1(((), e.ann.sourceLocation), b, ebs, ob), stk))
+      doEv(exp, consCtx({
+        ann, it: Cnd1(((), e.ann.sourceLocation), b, ebs, ob)
+      }, stk))
     }
   }
 }
-and transitionBgn = (es, e, stk: stack) => {
+and transitionBgn = (ann, es, e, stk: stack) => {
   switch es {
   | list{} => doEv(e, stk)
-  | list{e0, ...es} => doEv(e0, consCtx(Bgn1(((), e0.ann.sourceLocation), es, e), stk))
+  | list{e0, ...es} => doEv(e0, consCtx({
+    ann, it: Bgn1(((), e0.ann.sourceLocation), es, e)
+  }, stk))
   }
 }
 // and doLoop = (e, b, exp, stk: stack) => {
@@ -1142,6 +1161,7 @@ and doEntering = (b: block<printAnn>, env, stk): state => {
   transitionBlock(b, None, env, stk)
 }
 and transitionAppPrm = (
+  ann,
   f: primitive,
   vs: list<(value, sourceLocation)>,
   es: list<expression<printAnn>>,
@@ -1155,10 +1175,13 @@ and transitionAppPrm = (
 
   | list{e, ...es} =>
     let exp = e
-    doEv(exp, consCtx(AppPrm1(f, vs, ((), exp.ann.sourceLocation), es), stk))
+    doEv(exp, consCtx({
+      ann, it: AppPrm1(f, vs, ((), exp.ann.sourceLocation), es)
+    }, stk))
   }
 }
 and transitionApp = (
+  ann,
   f: (value, sourceLocation),
   vs: list<(value, sourceLocation)>,
   es: list<expression<printAnn>>,
@@ -1176,7 +1199,9 @@ and transitionApp = (
 
   | list{e, ...es} =>
     let exp = e
-    doEv(exp, consCtx(App2(f, vs, ((), exp.ann.sourceLocation), es), stk))
+    doEv(exp, consCtx({
+      ann, it: App2(f, vs, ((), exp.ann.sourceLocation), es)
+    }, stk))
   }
 }
 and doBlk = (b: block<printAnn>, isGen, stk: stack): state => {

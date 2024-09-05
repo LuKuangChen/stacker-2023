@@ -258,32 +258,48 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
   let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
     let {topping, base} = ctx
     let print = ref(getBodyBasePrint(base.base))
+    // replace dead expressions
+    let trueHole =
+      topping -> List.reduceReverse(
+        holeOfBodyBase(base.base.it),
+        (hole, ctxFrame) => {
+          if (SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation)) {
+            print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
+          }
+          holeOfFrame(ctxFrame)
+        }
+      )
+    print := substituteById(print.contents, exprLoc(trueHole), Plain(holeText))
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
         print := substituteById(print.contents, exprLoc(id), printOfValue(v))
       })
     })
-    // plug hole in
-    let hole = Option.getOr(
-      topping->List.head->Option.map(holeOfFrame),
-      holeOfBodyBase(base.base.it),
-    )
-    print := substituteById(print.contents, exprLoc(hole), Plain(holeText))
     blank(print.contents.it->Print.toString)
   }
 
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
     let {topping, base} = ctx
     let print = ref(getProgramBasePrint(base))
+    // replace dead expressions
+    let trueHole =
+      topping -> List.reduceReverse(
+        holeOfProgramBase(base.it),
+        (hole, ctxFrame) => {
+          if (SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation)) {
+            print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
+          }
+          holeOfFrame(ctxFrame)
+        }
+      )
+    print := substituteById(print.contents, exprLoc(trueHole), Plain(holeText))
+    // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
         print := substituteById(print.contents, exprLoc(id), printOfValue(v))
       })
     })
-    // plug hole in
-    let hole = Option.getOr(topping->List.head->Option.map(holeOfFrame), holeOfProgramBase(base.it))
-    print := substituteById(print.contents, exprLoc(hole), Plain(holeText))
     // convert to React.element
     blank(print.contents.it->Print.toString)
   }
