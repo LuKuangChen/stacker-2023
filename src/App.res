@@ -122,15 +122,6 @@ let parseSMoL = (program: string) => {
   Parser.parseProgram(program)
 }
 
-let remove_lang_line = (program: string) => {
-  // Js.Console.log2("Before replacement", program)
-  let re = %re("/^[\s]*#lang[^\n]*[\n]*/g")
-  let program = Js.String.replaceByRe(re, "", program)
-
-  // Js.Console.log2("After replacement", program)
-  program
-}
-
 @react.component
 let make = () => {
   let (program, rawSetProgram) = React.useState(_ => "")
@@ -138,7 +129,7 @@ let make = () => {
   let (parseFeedback, setParseFeedback) = React.useState(_ => "")
   let setProgram = (setter: string => string) => {
     setParseFeedback(_ => "")
-    rawSetProgram(v => remove_lang_line(setter(v)))
+    rawSetProgram(setter)
   }
   let (nNext, setNNext) = React.useState(_ => 0)
   let (syntax, setSyntax) = React.useState(_ => {
