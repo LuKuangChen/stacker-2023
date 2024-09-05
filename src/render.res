@@ -13,30 +13,11 @@ let stringOfKindedSourceLocation = ({nodeKind, sourceLocation}) => {
   `${NodeKind.toString(nodeKind)}-${SourceLocation.toString(sourceLocation)}`
 }
 
-let reactOfPrint = (p: SMoL.print<kindedSourceLocation>): React.element => {
-  let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
-    let ann = switch ann {
-    | None => it => it
-    | Some(ann) =>
-      it => {
-        let className = stringOfKindedSourceLocation(ann)
-        <span title={ann->stringOfKindedSourceLocation} className> {it} </span>
-      }
-    }
-    switch it {
-    | Plain("") => <> </>
-    | Group(list{}) => <> </>
-    | Plain(s) => ann(React.string(s))
-    | Group(es) => ann(React.array(es->List.toArray->Array.map(reactOfAnnotatedPrint)))
-    }
-  }
-  // Js.Console.log(p)
-  reactOfAnnotatedPrint(p)
-}
-
 let substituteById = (p: print<'id>, id: 'id, q: Print.t<'id>): print<'id> => {
+  let count = ref(0)
   let rec sub = ({ann, it}: print<'id>): print<'id> => {
     if ann == Some(id) {
+      count := 1 + count.contents
       {ann, it: q}
     } else {
       let it = switch it {
@@ -46,7 +27,14 @@ let substituteById = (p: print<'id>, id: 'id, q: Print.t<'id>): print<'id> => {
       {ann, it}
     }
   }
-  sub(p)
+  let r = sub(p)
+  if count.contents != 1 {
+    Js.Console.log("Weird thing happenned when trying to replace")
+    Js.Console.log2("within", p)
+    Js.Console.log2("the element", id)
+    Js.Console.log2("with", q)
+  }
+  r
 }
 
 module Syntax = {
@@ -119,6 +107,28 @@ let re_split = (s, re) => {
 
 let blankElem = e => {
   <code className="blank"> {e} </code>
+}
+
+
+let reactOfPrint = (p: SMoL.print<kindedSourceLocation>): React.element => {
+  let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
+    let ann = switch ann {
+    | None => it => it
+    | Some(ann) =>
+      it => {
+        let className = stringOfKindedSourceLocation(ann)
+        <span className> {it} </span>
+      }
+    }
+    switch it {
+    | Plain("") => <> </>
+    | Group(list{}) => <> </>
+    | Plain(s) => ann(React.string(s))
+    | Group(es) => ann(React.array(es->List.toArray->Array.map(reactOfAnnotatedPrint)))
+    }
+  }
+  // Js.Console.log(p)
+  blankElem(reactOfAnnotatedPrint(p))
 }
 
 let blank = (~marked=false, s) => {
@@ -276,7 +286,8 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
         print := substituteById(print.contents, exprLoc(id), printOfValue(v))
       })
     })
-    blank(print.contents.it->Print.toString)
+    // blank(print.contents.it->Print.toString)
+    reactOfPrint(print.contents)
   }
 
   let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
@@ -301,7 +312,8 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
       })
     })
     // convert to React.element
-    blank(print.contents.it->Print.toString)
+    // blank(print.contents.it->Print.toString)
+    reactOfPrint(print.contents)
   }
 
   let show_envFrm = (frm: environmentFrame) => {
@@ -684,7 +696,7 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
           <p className="now box called">
             {React.string(`Evaluating ${string_of_entrace(entrance)}`)}
             <br />
-            {blank(Print.toString(b.ann.print))}
+            {reactOfPrint(getBlockPrint(b))}
             <br />
             {React.string("in environment ")}
             {show_env(env)}
