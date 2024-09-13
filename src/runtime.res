@@ -691,6 +691,7 @@ and delta = (p, vs) =>
         }
       }, v1, v2, vs))
   | (Cmp(Lt), list{v, ...vs}) => return(deltaCmp((a, b) => a < b, v, vs))
+  | (Cmp(NumEq), list{v, ...vs}) => return(deltaEq(eqv2, v, vs))
   | (Cmp(Eq), list{v, ...vs}) => return(deltaEq(eqv2, v, vs))
   | (Cmp(Equal), list{v, ...vs}) => return(deltaEq(equal2, v, vs))
   | (Cmp(Gt), list{v, ...vs}) => return(deltaCmp((a, b) => a > b, v, vs))
