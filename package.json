@@ -9,7 +9,7 @@
     "build-parser": "npm run build-smol-parser && npm run build-javascript-parser && npm run build-python-parser && npm run build-common-parser",
     "rescript": "rescript clean && rescript build -w",
     "webpack": "npx webpack --mode development",
-    "build": "rescript clean && rescript build && npx webpack --mode production",
+    "webpack-build": "npx webpack --mode production",
     "publish": "rm -rf ./docs && cp -r ./dist ./docs",
     "publish-as-testing": "rm -rf ./docs/testing && cp -r ./dist ./docs/testing",
     "publish-on-tutor-website": "rm -rf ../smol-tutor/docs/stacker && cp -r ./dist ../smol-tutor/docs/stacker",
