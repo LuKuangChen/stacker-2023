@@ -18,7 +18,7 @@ let substituteById = (p: print<'id>, id: 'id, q: Print.t<'id>): print<'id> => {
   let rec sub = ({ann, it}: print<'id>): print<'id> => {
     if ann == Some(id) {
       count := 1 + count.contents
-      {ann, it: q}
+      q
     } else {
       let it = switch it {
       | Plain(s) => Plain(s)
@@ -108,7 +108,6 @@ let re_split = (s, re) => {
 let blankElem = e => {
   <code className="blank"> {e} </code>
 }
-
 
 let reactOfPrint = (p: SMoL.print<kindedSourceLocation>): React.element => {
   let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
@@ -240,27 +239,19 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
   }
 
   let printOfValue = (v: value): Print.t<'id> => {
-    Plain(printVal(v))
+    Plain(printVal(v))->Print.dummy
   }
 
   let getBodyBasePrint = (
-    {ann: {print, sourceLocation}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>,
-  ) => {
-    it: print,
-    ann: Some({
-      nodeKind: SMoL.Block,
-      sourceLocation,
-    }),
+    {ann: {print}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>,
+  ): print<kindedSourceLocation> => {
+    print
   }
 
   let getProgramBasePrint = (
-    {ann: {print, sourceLocation}}: annotated<Runtime.programBaseNode, SMoL.printAnn>,
+    {ann: {print}}: annotated<Runtime.programBaseNode, SMoL.printAnn>,
   ) => {
-    it: print,
-    ann: Some({
-      nodeKind: SMoL.Block,
-      sourceLocation,
-    }),
+    print
   }
 
   let exprLoc = sourceLocation => {nodeKind: Expression, sourceLocation}
@@ -269,17 +260,13 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
     let {topping, base} = ctx
     let print = ref(getBodyBasePrint(base.base))
     // replace dead expressions
-    let trueHole =
-      topping -> List.reduceReverse(
-        holeOfBodyBase(base.base.it),
-        (hole, ctxFrame) => {
-          if (SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation)) {
-            print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
-          }
-          holeOfFrame(ctxFrame)
-        }
-      )
-    print := substituteById(print.contents, exprLoc(trueHole), Plain(holeText))
+    let trueHole = topping->List.reduceReverse(holeOfBodyBase(base.base.it), (hole, ctxFrame) => {
+      if SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation) {
+        print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
+      }
+      holeOfFrame(ctxFrame)
+    })
+    print := substituteById(print.contents, exprLoc(trueHole), Print.dummy(Plain(holeText)))
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
@@ -294,17 +281,13 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
     let {topping, base} = ctx
     let print = ref(getProgramBasePrint(base))
     // replace dead expressions
-    let trueHole =
-      topping -> List.reduceReverse(
-        holeOfProgramBase(base.it),
-        (hole, ctxFrame) => {
-          if (SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation)) {
-            print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
-          }
-          holeOfFrame(ctxFrame)
-        }
-      )
-    print := substituteById(print.contents, exprLoc(trueHole), Plain(holeText))
+    let trueHole = topping->List.reduceReverse(holeOfProgramBase(base.it), (hole, ctxFrame) => {
+      if SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation) {
+        print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
+      }
+      holeOfFrame(ctxFrame)
+    })
+    print := substituteById(print.contents, exprLoc(trueHole), Plain(holeText)->Print.dummy)
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
@@ -443,7 +426,7 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
               {React.string(` to ${(ann.end.ln + 1)->Int.toString}`)}
               <small> {React.string(`:${(ann.end.ch + 1)->Int.toString}`)} </small>
             </summary>
-            {blank(Print.toString(print.it))}
+            {blank(Print.toString(print))}
             <br />
           </details>
           <span>
@@ -696,7 +679,7 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
           <p className="now box called">
             {React.string(`Evaluating ${string_of_entrace(entrance)}`)}
             <br />
-            {reactOfPrint(getBlockPrint(b))}
+            {reactOfPrint(b.ann.print)}
             <br />
             {React.string("in environment ")}
             {show_env(env)}

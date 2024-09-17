@@ -183,7 +183,7 @@ let printValue = (v: value) => {
 let makePrimitiveName = name => {
   {
     it: name,
-    ann: {print: Plain(name), sourceLocation: {begin: {ln: 0, ch: 0}, end: {ln: 0, ch: 0}}},
+    ann: {print: Plain(name) |> Print.dummy, sourceLocation: {begin: {ln: 0, ch: 0}, end: {ln: 0, ch: 0}}},
   }
 }
 
@@ -897,7 +897,7 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
           nodeKind: Expression,
           sourceLocation: exp.ann.sourceLocation,
         },
-        getPrint(exp),
+        exp.ann.print,
       )
       return(v)(stk)
     }
@@ -911,7 +911,7 @@ and doEv = (exp: expression<printAnn>, stk: stack) =>
           nodeKind: Expression,
           sourceLocation: exp.ann.sourceLocation,
         },
-        getPrint(exp),
+        exp.ann.print,
       )
       return(v)(stk)
     }
@@ -1004,7 +1004,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
               nodeKind: Definition,
               sourceLocation: ann.sourceLocation,
             },
-            getDefinitionPrint(d),
+            d.ann.print,
           )
           doSetVar(env, f, v)
           transitionBlock(b, isGen, env, stk)
@@ -1019,7 +1019,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
               nodeKind: Definition,
               sourceLocation: ann.sourceLocation,
             },
-            getDefinitionPrint(d),
+            d.ann.print,
           )
           doSetVar(env, f, v)
           transitionBlock(b, isGen, env, stk)
@@ -1056,7 +1056,7 @@ and transitionPrg = ({ann, it: p}, env: environment) => {
               nodeKind: Definition,
               sourceLocation: d.ann.sourceLocation,
             },
-            getDefinitionPrint(d),
+            d.ann.print,
           )
           doSetVar(env, f, v)
           transitionPrg(p, env)
@@ -1071,7 +1071,7 @@ and transitionPrg = ({ann, it: p}, env: environment) => {
               nodeKind: Definition,
               sourceLocation: d.ann.sourceLocation,
             },
-            getDefinitionPrint(d),
+            d.ann.print,
           )
           doSetVar(env, f, v)
           transitionPrg(p, env)
