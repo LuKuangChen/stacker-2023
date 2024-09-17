@@ -13,7 +13,10 @@ let stringOfKindedSourceLocation = ({nodeKind, sourceLocation}) => {
   `${NodeKind.toString(nodeKind)}-${SourceLocation.toString(sourceLocation)}`
 }
 
-let substituteById = (p: print<'id>, id: 'id, q: Print.t<'id>): print<'id> => {
+let substituteById = (p: print<'id>, id: 'id, q: print<'id>): print<'id> => {
+  Js.Console.log3("Within", Print.toString(p), p)
+  Js.Console.log3("- replace", stringOfKindedSourceLocation(id), id)
+  Js.Console.log3("- with", Print.toString(q), q)
   let count = ref(0)
   let rec sub = ({ann, it}: print<'id>): print<'id> => {
     if ann == Some(id) {
@@ -242,15 +245,13 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
     Plain(printVal(v))->Print.dummy
   }
 
-  let getBodyBasePrint = (
-    {ann: {print}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>,
-  ): print<kindedSourceLocation> => {
+  let getBodyBasePrint = ({ann: {print}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>): print<
+    kindedSourceLocation,
+  > => {
     print
   }
 
-  let getProgramBasePrint = (
-    {ann: {print}}: annotated<Runtime.programBaseNode, SMoL.printAnn>,
-  ) => {
+  let getProgramBasePrint = ({ann: {print}}: annotated<Runtime.programBaseNode, SMoL.printAnn>) => {
     print
   }
 
