@@ -100,7 +100,8 @@ section#stdout {
 }
 
 code.blank {
-    display: inline-flex;
+    display: inline-block;
+    vertical-align: text-top;
     white-space: pre-wrap;
     color: black;
 }
