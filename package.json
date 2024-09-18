@@ -10,9 +10,10 @@
     "rescript": "rescript clean && rescript build -w",
     "webpack": "npx webpack --mode development",
     "webpack-build": "npx webpack --mode production",
-    "publish": "rm -rf ./docs && cp -r ./dist ./docs",
-    "publish-as-testing": "rm -rf ./docs/testing && cp -r ./dist ./docs/testing",
+    "publish-here": "rm -rf ./docs && cp -r ./dist ./docs",
     "publish-on-tutor-website": "rm -rf ../smol-tutor/docs/stacker && cp -r ./dist ../smol-tutor/docs/stacker",
+    "publish": "npm run publish-here && npm run publish-on-tutor-website",
+    "publish-as-testing": "rm -rf ./docs/testing && cp -r ./dist ./docs/testing",
     "localhost": "python -m http.server --directory dist"
   },
   "keywords": [

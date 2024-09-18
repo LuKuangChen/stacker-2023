@@ -59,7 +59,6 @@ type running_state = {
 }
 
 let pool_of_randomSeed = [
-  Js.Math._PI->Float.toString,
   Js.Math._E->Float.toString,
   "smol",
   "defvar",

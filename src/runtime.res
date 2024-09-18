@@ -343,14 +343,14 @@ let rec appear_in = (x, ys) => {
   }
 }
 
-let has_duplicates = (xs: list<symbol>) => {
+let rec has_duplicates = (xs: list<symbol>) => {
   switch xs {
   | list{} => None
   | list{x, ...xs} =>
     if appear_in(x, xs) {
       Some(x)
     } else {
-      None
+      has_duplicates(xs)
     }
   }
 }
