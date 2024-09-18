@@ -13,7 +13,10 @@ let stringOfKindedSourceLocation = ({nodeKind, sourceLocation}) => {
   `${NodeKind.toString(nodeKind)}-${SourceLocation.toString(sourceLocation)}`
 }
 
-let substituteById = (p: print<'id>, id: 'id, q: Print.t<'id>): print<'id> => {
+let substituteById = (p: print<'id>, id: 'id, q: print<'id>): print<'id> => {
+  Js.Console.log3("Within", Print.toString(p), p)
+  Js.Console.log3("- replace", stringOfKindedSourceLocation(id), id)
+  Js.Console.log3("- with", Print.toString(q), q)
   let count = ref(0)
   let rec sub = ({ann, it}: print<'id>): print<'id> => {
     if ann == Some(id) {
@@ -242,42 +245,48 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
     Plain(printVal(v))->Print.dummy
   }
 
-  let getBodyBasePrint = (
-    {ann: {print}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>,
-  ): print<kindedSourceLocation> => {
+  let getBodyBasePrint = ({ann: {print}}: annotated<Runtime.bodyBaseNode, SMoL.printAnn>): print<
+    kindedSourceLocation,
+  > => {
     print
   }
 
-  let getProgramBasePrint = (
-    {ann: {print}}: annotated<Runtime.programBaseNode, SMoL.printAnn>,
-  ) => {
+  let getProgramBasePrint = ({ann: {print}}: annotated<Runtime.programBaseNode, SMoL.printAnn>) => {
     print
   }
 
   let exprLoc = sourceLocation => {nodeKind: Expression, sourceLocation}
 
-  let renderBodyContext = (ctx: pile<contextFrame, bodyBase>): React.element => {
+  let renderBodyContext = (
+    ~hole=Plain(holeText)->Print.dummy,
+    ctx: pile<contextFrame, bodyBase>,
+  ): React.element => {
     let {topping, base} = ctx
     let print = ref(getBodyBasePrint(base.base))
     // replace dead expressions
     let trueHole = topping->List.reduceReverse(holeOfBodyBase(base.base.it), (hole, ctxFrame) => {
       if SourceLocation.toString(hole) != SourceLocation.toString(ctxFrame.ann.sourceLocation) {
+        Js.Console.log("skipped a dead expression")
         print := substituteById(print.contents, exprLoc(hole), ctxFrame.ann.print)
       }
       holeOfFrame(ctxFrame)
     })
-    print := substituteById(print.contents, exprLoc(trueHole), Print.dummy(Plain(holeText)))
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
         print := substituteById(print.contents, exprLoc(id), printOfValue(v))
       })
     })
+    // plug the hole in
+    print := substituteById(print.contents, exprLoc(trueHole), hole)
     // blank(print.contents.it->Print.toString)
     reactOfPrint(print.contents)
   }
 
-  let renderProgramContext = (ctx: pile<contextFrame, programBase>): React.element => {
+  let renderProgramContext = (
+    ~hole=Plain(holeText)->Print.dummy,
+    ctx: pile<contextFrame, programBase>,
+  ): React.element => {
     let {topping, base} = ctx
     let print = ref(getProgramBasePrint(base))
     // replace dead expressions
@@ -287,7 +296,7 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
       }
       holeOfFrame(ctxFrame)
     })
-    print := substituteById(print.contents, exprLoc(trueHole), Plain(holeText)->Print.dummy)
+    print := substituteById(print.contents, exprLoc(trueHole), hole)
     // plug values in
     topping->List.forEach(f => {
       valuesOfFrame(f)->List.forEach(((v, id)) => {
@@ -567,8 +576,8 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
       </div>
     }
   }
-  let nowOfRedex = (redex, ctx, env) => {
-    switch redex {
+  let nowOfRedex = (redex: redex, ctx, env) => {
+    switch redex.it {
     | Yielding(v) =>
       <p className="now box returning">
         {React.string("Yielding ")}
@@ -688,6 +697,11 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
       }
 
     | Reducing(redex, stk) => {
+        let redexPrint = substituteById(
+          redex.ann.print,
+          exprLoc(redex.ann.sourceLocation),
+          Print.dummy(Plain(holeText)),
+        )
         let (ctx, env, stk) = switch stk {
         | {topping: list{}, base: {ctx, env}} => (
             ctx->renderProgramContext,
