@@ -14,9 +14,9 @@ let stringOfKindedSourceLocation = ({nodeKind, sourceLocation}) => {
 }
 
 let substituteById = (p: print<'id>, id: 'id, q: print<'id>): print<'id> => {
-  Js.Console.log3("Within", Print.toString(p), p)
-  Js.Console.log3("- replace", stringOfKindedSourceLocation(id), id)
-  Js.Console.log3("- with", Print.toString(q), q)
+  // Js.Console.log3("Within", Print.toString(p), p)
+  // Js.Console.log3("- replace", stringOfKindedSourceLocation(id), id)
+  // Js.Console.log3("- with", Print.toString(q), q)
   let count = ref(0)
   let rec sub = ({ann, it}: print<'id>): print<'id> => {
     if ann == Some(id) {
@@ -31,12 +31,12 @@ let substituteById = (p: print<'id>, id: 'id, q: print<'id>): print<'id> => {
     }
   }
   let r = sub(p)
-  if count.contents != 1 {
-    Js.Console.log("Weird thing happenned when trying to replace")
-    Js.Console.log2("within", p)
-    Js.Console.log2("the element", id)
-    Js.Console.log2("with", q)
-  }
+  // if count.contents != 1 {
+  //   Js.Console.log("Weird thing happenned when trying to replace")
+  //   Js.Console.log2("within", p)
+  //   Js.Console.log2("the element", id)
+  //   Js.Console.log2("with", q)
+  // }
   r
 }
 
@@ -112,26 +112,26 @@ let blankElem = e => {
   <code className="blank"> {e} </code>
 }
 
-let reactOfPrint = (p: SMoL.print<kindedSourceLocation>): React.element => {
-  let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
-    let ann = switch ann {
-    | None => it => it
-    | Some(ann) =>
-      it => {
-        let className = stringOfKindedSourceLocation(ann)
-        <span className> {it} </span>
-      }
-    }
-    switch it {
-    | Plain("") => <> </>
-    | Group(list{}) => <> </>
-    | Plain(s) => ann(React.string(s))
-    | Group(es) => ann(React.array(es->List.toArray->Array.map(reactOfAnnotatedPrint)))
-    }
-  }
-  // Js.Console.log(p)
-  blankElem(reactOfAnnotatedPrint(p))
-}
+// let reactOfPrint = (p: SMoL.print<kindedSourceLocation>): React.element => {
+//   let rec reactOfAnnotatedPrint = ({it, ann}: SMoL.print<_>) => {
+//     let ann = switch ann {
+//     | None => it => it
+//     | Some(ann) =>
+//       it => {
+//         let className = stringOfKindedSourceLocation(ann)
+//         <span className> {it} </span>
+//       }
+//     }
+//     switch it {
+//     | Plain("") => <> </>
+//     | Group(list{}) => <> </>
+//     | Plain(s) => ann(React.string(s))
+//     | Group(es) => ann(React.array(es->List.toArray->Array.map(reactOfAnnotatedPrint)))
+//     }
+//   }
+//   // Js.Console.log(p)
+//   blankElem(reactOfAnnotatedPrint(p))
+// }
 
 let blank = (~marked=false, s) => {
   let marked = !firstState.contents && marked
@@ -152,7 +152,7 @@ let blank = (~marked=false, s) => {
         } else {
           // must be an address
           // let address = s
-          let address = String.substring(s, ~start=1, ~end=String.length(s) - 1)
+          let address = String.substring(s, ~start=1, ~end=String.length(s))
           <span
             className={`ref ref-${address}`}
             onMouseEnter={_ => {
@@ -279,8 +279,8 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
     })
     // plug the hole in
     print := substituteById(print.contents, exprLoc(trueHole), hole)
-    // blank(print.contents.it->Print.toString)
-    reactOfPrint(print.contents)
+    blank(print.contents->Print.toString)
+    // reactOfPrint(print.contents)
   }
 
   let renderProgramContext = (
@@ -304,8 +304,8 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
       })
     })
     // convert to React.element
-    // blank(print.contents.it->Print.toString)
-    reactOfPrint(print.contents)
+    blank(print.contents->Print.toString)
+    // reactOfPrint(print.contents)
   }
 
   let show_envFrm = (frm: environmentFrame) => {
@@ -688,7 +688,7 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
           <p className="now box called">
             {React.string(`Evaluating ${string_of_entrace(entrance)}`)}
             <br />
-            {reactOfPrint(b.ann.print)}
+            {blank(b.ann.print->Print.toString)}
             <br />
             {React.string("in environment ")}
             {show_env(env)}
@@ -697,11 +697,6 @@ let render = (sk, holeText, s, srcMap: kindedSourceLocation => option<sourceLoca
       }
 
     | Reducing(redex, stk) => {
-        let redexPrint = substituteById(
-          redex.ann.print,
-          exprLoc(redex.ann.sourceLocation),
-          Print.dummy(Plain(holeText)),
-        )
         let (ctx, env, stk) = switch stk {
         | {topping: list{}, base: {ctx, env}} => (
             ctx->renderProgramContext,

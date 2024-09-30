@@ -1074,7 +1074,7 @@ and transitionBlock = ({it: b, ann}: block<printAnn>, isGen, env: environment, s
   | BCons(t, b) =>
     switch t.it {
     | Exp(exp) => {
-        Js.Console.log(exp.ann.sourceLocation)
+        // Js.Console.log(exp.ann.sourceLocation)
         doEv(
           exp,
           add_pile(
