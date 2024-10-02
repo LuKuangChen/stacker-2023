@@ -631,7 +631,8 @@ let deltaEq = (cmp, v, vs): value => {
 
 let arityOf = p =>
   switch p {
-  | Arith(Add) => RTArity.AtLeast(1)
+  | Maybe => RTArity.Exactly(0)
+  | Arith(Add) => AtLeast(1)
   | Arith(Sub) => AtLeast(2)
   | Arith(Mul) => AtLeast(1)
   | Arith(Div) => AtLeast(2)
@@ -684,6 +685,7 @@ and make_vector = (vs: list<value>) => {
 }
 and delta = (ann, p, vs) =>
   switch (p, vs) {
+  | (Maybe, list{}) => return(Con(Lgc(Math.random() >= 0.5)))
   | (Arith(Add), list{v, ...vs}) => return(deltaNum1((a, b) => a +. b, v, vs))
   | (Arith(Sub), list{v1, v2, ...vs}) => return(deltaNum2((a, b) => a -. b, v1, v2, vs))
   | (Arith(Mul), list{v, ...vs}) => return(deltaNum1((a, b) => a *. b, v, vs))
