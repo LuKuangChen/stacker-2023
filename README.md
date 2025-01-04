@@ -45,18 +45,7 @@ might nor have a JavaScript-equivalent semantics.
 
 ### To-do: limitations that we plan to remove
 
-Parsing errors are not reported with source code locations.
-
-Keyboard shortcut is unstable.
-
-ReScript-React registers tons of unused event handlers to the root
-element. This might raise accessibility problem.
-
-Add list-processing higher-order functions.
-
-`letrec` is interpreted as a block. It might be better to treat it as a primitive syntax.
-
-`let*` is read as nested `let`. It might be better to treat it as a primitive syntax.
+See the GitHub Issue page.
 
 ### Know Issues: limitations that we don't plan to (or simply can't) resolve
 
